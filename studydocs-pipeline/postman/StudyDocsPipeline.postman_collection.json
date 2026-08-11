@@ -1,0 +1,233 @@
+{
+  "info": {
+    "name": "StudyDocs Pipeline",
+    "description": "Colección manual para probar la API del proyecto de portfolio StudyDocs Pipeline. Usa el environment 'StudyDocs Pipeline - Local' junto a esta colección.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Health",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": { "raw": "{{baseUrl}}/health", "host": ["{{baseUrl}}"], "path": ["health"] }
+      }
+    },
+    {
+      "name": "OpenAPI spec",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": { "raw": "{{baseUrl}}/openapi.json", "host": ["{{baseUrl}}"], "path": ["openapi.json"] }
+      }
+    },
+    {
+      "name": "Documents",
+      "item": [
+        {
+          "name": "1. Create Document",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.environment.set('documentId', body.id);",
+                  "pm.environment.set('version', body.version);",
+                  "pm.test('status is 201', () => pm.response.to.have.status(201));",
+                  "pm.test('status is CREATED', () => pm.expect(body.status).to.eql('CREATED'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ownerId\": \"owner-1\",\n  \"title\": \"Apuntes de Álgebra\",\n  \"subject\": \"Matemáticas\",\n  \"university\": \"Universidad de Sevilla\",\n  \"tags\": [\"algebra\", \"examen\"]\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/documents", "host": ["{{baseUrl}}"], "path": ["documents"] }
+          }
+        },
+        {
+          "name": "2. Get Document by ID",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/documents/{{documentId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["documents", "{{documentId}}"]
+            }
+          }
+        },
+        {
+          "name": "3. List Documents by Owner",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/documents?ownerId=owner-1",
+              "host": ["{{baseUrl}}"],
+              "path": ["documents"],
+              "query": [{ "key": "ownerId", "value": "owner-1" }]
+            }
+          }
+        },
+        {
+          "name": "4. Complete Upload (elige un PDF en el body)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.environment.set('version', body.version);",
+                  "pm.test('status is 202', () => pm.response.to.have.status(202));",
+                  "pm.test('status is QUEUED', () => pm.expect(body.status).to.eql('QUEUED'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [{ "key": "file", "type": "file", "src": [] }]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/documents/{{documentId}}/complete-upload",
+              "host": ["{{baseUrl}}"],
+              "path": ["documents", "{{documentId}}", "complete-upload"]
+            }
+          }
+        },
+        {
+          "name": "5. Update Metadata (version correcta -> 200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const body = pm.response.json();",
+                  "if (pm.response.code === 200) { pm.environment.set('version', body.version); }",
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"version\": {{version}},\n  \"title\": \"Título actualizado desde Postman\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/documents/{{documentId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["documents", "{{documentId}}"]
+            }
+          }
+        },
+        {
+          "name": "6. Update Metadata (version desfasada -> 409 conflicto)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('status is 409 (optimistic concurrency conflict)', () => pm.response.to.have.status(409));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"version\": 0,\n  \"title\": \"Este cambio debería fallar (version 0 ya está desfasada)\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/documents/{{documentId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["documents", "{{documentId}}"]
+            }
+          }
+        },
+        {
+          "name": "7. Get Document (404 esperado)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('status is 404', () => pm.response.to.have.status(404));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/documents/does-not-exist",
+              "host": ["{{baseUrl}}"],
+              "path": ["documents", "does-not-exist"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Search",
+      "item": [
+        {
+          "name": "Search by text",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/search?text=algebra",
+              "host": ["{{baseUrl}}"],
+              "path": ["search"],
+              "query": [{ "key": "text", "value": "algebra" }]
+            }
+          }
+        },
+        {
+          "name": "Search by subject",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/search?subject=Matemáticas",
+              "host": ["{{baseUrl}}"],
+              "path": ["search"],
+              "query": [{ "key": "subject", "value": "Matemáticas" }]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
