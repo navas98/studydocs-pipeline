@@ -1,5 +1,7 @@
 import Fastify, { type FastifyInstance } from 'fastify';
+import multipart from '@fastify/multipart';
 import swagger from '@fastify/swagger';
+import type { CompleteUploadUseCase } from '../../application/documents/CompleteUpload.js';
 import type { CreateDocumentUseCase } from '../../application/documents/CreateDocument.js';
 import type { GetDocumentUseCase } from '../../application/documents/GetDocument.js';
 import type { ListDocumentsUseCase } from '../../application/documents/ListDocuments.js';
@@ -9,7 +11,10 @@ export interface AppDeps {
   createDocument: CreateDocumentUseCase;
   getDocument: GetDocumentUseCase;
   listDocuments: ListDocumentsUseCase;
+  completeUpload: CompleteUploadUseCase;
 }
+
+const MAX_UPLOAD_BYTES = 20 * 1024 * 1024; // 20 MB, per section 14 (max size restriction)
 
 export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   const app = Fastify({ logger: true });
@@ -18,6 +23,10 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     openapi: {
       info: { title: 'StudyDocs Pipeline API', version: '0.1.0' },
     },
+  });
+
+  await app.register(multipart, {
+    limits: { fileSize: MAX_UPLOAD_BYTES },
   });
 
   app.get('/openapi.json', async () => app.swagger());

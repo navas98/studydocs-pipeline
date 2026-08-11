@@ -1,14 +1,20 @@
 import type { FastifyInstance } from 'fastify';
+import type { CompleteUploadUseCase } from '../../../application/documents/CompleteUpload.js';
 import type { CreateDocumentUseCase } from '../../../application/documents/CreateDocument.js';
+import { DocumentNotFoundError } from '../../../application/documents/errors.js';
 import type { GetDocumentUseCase } from '../../../application/documents/GetDocument.js';
 import type { ListDocumentsUseCase } from '../../../application/documents/ListDocuments.js';
+import { InvalidDocumentTransitionError } from '../../../domain/document/errors.js';
 import { toDocumentResponse } from '../documentMapper.js';
 
 export interface DocumentRoutesDeps {
   createDocument: CreateDocumentUseCase;
   getDocument: GetDocumentUseCase;
   listDocuments: ListDocumentsUseCase;
+  completeUpload: CompleteUploadUseCase;
 }
+
+const ALLOWED_MIME_TYPES = new Set(['application/pdf']);
 
 const documentResponseSchema = {
   type: 'object',
@@ -110,6 +116,56 @@ export function registerDocumentRoutes(app: FastifyInstance, deps: DocumentRoute
       const query = request.query as { ownerId: string; limit?: number; offset?: number };
       const documents = await deps.listDocuments.execute(query);
       return documents.map(toDocumentResponse);
+    },
+  );
+
+  app.post(
+    '/documents/:id/complete-upload',
+    {
+      schema: {
+        params: {
+          type: 'object',
+          required: ['id'],
+          properties: { id: { type: 'string' } },
+        },
+        response: {
+          202: documentResponseSchema,
+          404: { type: 'object', properties: { error: { type: 'string' } } },
+          409: { type: 'object', properties: { error: { type: 'string' } } },
+          415: { type: 'object', properties: { error: { type: 'string' } } },
+        },
+      },
+    },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+
+      const uploadedFile = await request.file();
+      if (!uploadedFile || !ALLOWED_MIME_TYPES.has(uploadedFile.mimetype)) {
+        reply.code(415);
+        return { error: 'Only application/pdf uploads are accepted' };
+      }
+
+      const fileBuffer = await uploadedFile.toBuffer();
+
+      try {
+        const document = await deps.completeUpload.execute({
+          documentId: id,
+          file: fileBuffer,
+          mimeType: uploadedFile.mimetype,
+        });
+        reply.code(202);
+        return toDocumentResponse(document);
+      } catch (error) {
+        if (error instanceof DocumentNotFoundError) {
+          reply.code(404);
+          return { error: error.message };
+        }
+        if (error instanceof InvalidDocumentTransitionError) {
+          reply.code(409);
+          return { error: error.message };
+        }
+        throw error;
+      }
     },
   );
 }
