@@ -1,5 +1,5 @@
 import { DeleteMessageCommand, ReceiveMessageCommand, type SQSClient } from '@aws-sdk/client-sqs';
-import type { ProcessDocumentUseCase } from '../application/documents/ProcessDocument.js';
+import type { ProcessDocumentOutcome, ProcessDocumentUseCase } from '../application/documents/ProcessDocument.js';
 import { handleMessage } from './messageHandler.js';
 
 const POLL_WAIT_SECONDS = 10;
@@ -9,6 +9,7 @@ export async function pollOnce(
   sqsClient: SQSClient,
   queueUrl: string,
   useCase: ProcessDocumentUseCase,
+  onOutcome?: (outcome: ProcessDocumentOutcome) => void,
 ): Promise<void> {
   const result = await sqsClient.send(
     new ReceiveMessageCommand({
@@ -23,8 +24,9 @@ export async function pollOnce(
       continue;
     }
 
-    const outcome = await handleMessage(useCase, message.Body);
-    if (outcome === 'ack') {
+    const { action, outcome } = await handleMessage(useCase, message.Body);
+    onOutcome?.(outcome);
+    if (action === 'ack') {
       await sqsClient.send(
         new DeleteMessageCommand({ QueueUrl: queueUrl, ReceiptHandle: message.ReceiptHandle }),
       );

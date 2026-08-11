@@ -13,6 +13,12 @@ import { registerErrorHandler } from './errorHandler.js';
 import { registerDocumentRoutes } from './routes/documents.js';
 import { registerSearchRoutes } from './routes/search.js';
 
+export type HealthStatus = 'ok' | 'error';
+
+// Real readiness (section 9/15), not a hardcoded { status: "ok" }: pings
+// the stateful dependencies the API actually needs to function.
+export type CheckHealth = () => Promise<Record<string, HealthStatus>>;
+
 export interface AppDeps {
   createDocument: CreateDocumentUseCase;
   getDocument: GetDocumentUseCase;
@@ -21,6 +27,7 @@ export interface AppDeps {
   searchDocuments: SearchDocumentsUseCase;
   updateDocumentMetadata: UpdateDocumentMetadataUseCase;
   retryDocument: RetryDocumentUseCase;
+  checkHealth: CheckHealth;
 }
 
 const MAX_UPLOAD_BYTES = 20 * 1024 * 1024; // 20 MB, per section 14 (max size restriction)
@@ -54,7 +61,12 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   });
 
   app.get('/openapi.json', async () => app.swagger());
-  app.get('/health', async () => ({ status: 'ok' }));
+  app.get('/health', async (_request, reply) => {
+    const checks = await deps.checkHealth();
+    const healthy = Object.values(checks).every((status) => status === 'ok');
+    reply.code(healthy ? 200 : 503);
+    return { status: healthy ? 'ok' : 'error', checks };
+  });
 
   registerDocumentRoutes(app, deps);
   registerSearchRoutes(app, deps);

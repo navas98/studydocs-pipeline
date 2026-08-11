@@ -11,6 +11,7 @@ import { SearchDocumentsUseCase } from '../../src/application/documents/SearchDo
 import { UpdateDocumentMetadataUseCase } from '../../src/application/documents/UpdateDocumentMetadata.js';
 import { ProcessDocumentUseCase } from '../../src/application/documents/ProcessDocument.js';
 import { buildApp } from '../../src/interfaces/http/app.js';
+import { createCheckHealth } from '../../src/interfaces/http/health.js';
 import { DeleteMessageCommand, ReceiveMessageCommand, SQSClient } from '@aws-sdk/client-sqs';
 import { createS3Client, createSqsClient } from '../../src/infrastructure/aws/clients.js';
 import {
@@ -72,6 +73,7 @@ beforeAll(async () => {
     searchDocuments: new SearchDocumentsUseCase(searchIndex),
     updateDocumentMetadata: new UpdateDocumentMetadataUseCase(repository),
     retryDocument: new RetryDocumentUseCase(repository, queue),
+    checkHealth: createCheckHealth(db, esClient),
   });
   await app.ready();
 });

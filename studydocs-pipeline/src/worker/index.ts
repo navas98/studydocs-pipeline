@@ -12,6 +12,7 @@ import { connectMongo, ensureDocumentIndexes } from '../infrastructure/mongodb/c
 import { MongoDocumentRepository } from '../infrastructure/mongodb/MongoDocumentRepository.js';
 import { PdfDocumentProcessor } from '../infrastructure/pdf/PdfDocumentProcessor.js';
 import { S3ObjectStorage } from '../infrastructure/s3/S3ObjectStorage.js';
+import { createWorkerMetrics, recordOutcome } from './metrics.js';
 import { pollOnce } from './poll.js';
 
 async function main(): Promise<void> {
@@ -36,11 +37,15 @@ async function main(): Promise<void> {
     new PinoLogger(logger),
   );
 
+  const metrics = createWorkerMetrics();
   logger.info({ queueUrl: config.sqsQueueUrl }, 'worker started, polling');
 
   while (true) {
     try {
-      await pollOnce(sqsClient, config.sqsQueueUrl, useCase);
+      await pollOnce(sqsClient, config.sqsQueueUrl, useCase, (outcome) => {
+        recordOutcome(metrics, outcome);
+        logger.info({ metrics }, 'worker metrics');
+      });
     } catch (error) {
       logger.error({ err: error }, 'worker poll failed');
     }

@@ -46,12 +46,12 @@ describe('handleMessage', () => {
     const processor: DocumentProcessor = { process: async () => {} };
     const useCase = new ProcessDocumentUseCase(repo, processor, noopLogger);
 
-    const outcome = await handleMessage(
+    const result = await handleMessage(
       useCase,
       JSON.stringify({ documentId: document.id, correlationId: 'c-1' }),
     );
 
-    expect(outcome).toBe('ack');
+    expect(result).toEqual({ action: 'ack', outcome: 'INDEXED' });
   });
 
   it('requeues a message when the document is left in RETRYING', async () => {
@@ -65,12 +65,12 @@ describe('handleMessage', () => {
     };
     const useCase = new ProcessDocumentUseCase(repo, processor, noopLogger);
 
-    const outcome = await handleMessage(
+    const result = await handleMessage(
       useCase,
       JSON.stringify({ documentId: document.id, correlationId: 'c-1' }),
     );
 
-    expect(outcome).toBe('requeue');
+    expect(result).toEqual({ action: 'requeue', outcome: 'RETRYING' });
   });
 
   it('acks a message for a document that no longer exists', async () => {
@@ -78,11 +78,11 @@ describe('handleMessage', () => {
     const processor: DocumentProcessor = { process: async () => {} };
     const useCase = new ProcessDocumentUseCase(repo, processor, noopLogger);
 
-    const outcome = await handleMessage(
+    const result = await handleMessage(
       useCase,
       JSON.stringify({ documentId: 'does-not-exist', correlationId: 'c-1' }),
     );
 
-    expect(outcome).toBe('ack');
+    expect(result).toEqual({ action: 'ack', outcome: 'SKIPPED_NOT_FOUND' });
   });
 });

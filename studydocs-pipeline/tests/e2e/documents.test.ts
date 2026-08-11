@@ -10,6 +10,7 @@ import { RetryDocumentUseCase } from '../../src/application/documents/RetryDocum
 import { SearchDocumentsUseCase } from '../../src/application/documents/SearchDocuments.js';
 import { UpdateDocumentMetadataUseCase } from '../../src/application/documents/UpdateDocumentMetadata.js';
 import { buildApp } from '../../src/interfaces/http/app.js';
+import { createCheckHealth } from '../../src/interfaces/http/health.js';
 import { createS3Client, createSqsClient } from '../../src/infrastructure/aws/clients.js';
 import {
   createElasticsearchClient,
@@ -68,6 +69,7 @@ beforeAll(async () => {
     searchDocuments: new SearchDocumentsUseCase(searchIndex),
     updateDocumentMetadata: new UpdateDocumentMetadataUseCase(repository),
     retryDocument: new RetryDocumentUseCase(repository, queue),
+    checkHealth: createCheckHealth(db, esClient),
   });
   await app.ready();
 });
@@ -227,10 +229,10 @@ describe('Documents HTTP API', () => {
     expect(response.json().openapi).toBeDefined();
   });
 
-  it('exposes a health endpoint', async () => {
+  it('reports healthy when Mongo and Elasticsearch are reachable', async () => {
     const response = await app.inject({ method: 'GET', url: '/health' });
     expect(response.statusCode).toBe(200);
-    expect(response.json()).toEqual({ status: 'ok' });
+    expect(response.json()).toEqual({ status: 'ok', checks: { mongo: 'ok', elasticsearch: 'ok' } });
   });
 
   it('completes an upload and moves the document to QUEUED', async () => {

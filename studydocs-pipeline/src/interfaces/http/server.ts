@@ -17,6 +17,7 @@ import { MongoDocumentRepository } from '../../infrastructure/mongodb/MongoDocum
 import { S3ObjectStorage } from '../../infrastructure/s3/S3ObjectStorage.js';
 import { SqsDocumentQueue } from '../../infrastructure/sqs/SqsDocumentQueue.js';
 import { buildApp } from './app.js';
+import { createCheckHealth } from './health.js';
 
 async function main(): Promise<void> {
   const config = loadConfig();
@@ -43,6 +44,7 @@ async function main(): Promise<void> {
     searchDocuments: new SearchDocumentsUseCase(searchIndex),
     updateDocumentMetadata: new UpdateDocumentMetadataUseCase(repository),
     retryDocument: new RetryDocumentUseCase(repository, queue),
+    checkHealth: createCheckHealth(db, esClient),
   });
 
   await app.listen({ port: config.port, host: '0.0.0.0' });
