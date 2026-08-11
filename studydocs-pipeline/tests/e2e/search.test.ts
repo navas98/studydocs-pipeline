@@ -17,7 +17,6 @@ import { DeleteMessageCommand, ReceiveMessageCommand, SQSClient } from '@aws-sdk
 import { createS3Client, createSqsClient } from '../../src/infrastructure/aws/clients.js';
 import {
   createElasticsearchClient,
-  DOCUMENTS_INDEX,
   ensureDocumentsIndex,
 } from '../../src/infrastructure/elasticsearch/connection.js';
 import { ElasticsearchSearchIndex } from '../../src/infrastructure/elasticsearch/ElasticsearchSearchIndex.js';
@@ -36,6 +35,7 @@ const SQS_QUEUE_URL =
   process.env.SQS_QUEUE_URL ??
   'http://sqs.us-east-1.localhost.localstack.cloud:4566/000000000000/studydocs-processing';
 const ELASTICSEARCH_NODE = process.env.ELASTICSEARCH_NODE ?? 'http://localhost:9200';
+const ELASTICSEARCH_INDEX = process.env.ELASTICSEARCH_INDEX ?? 'documents_test';
 
 process.env.AWS_ACCESS_KEY_ID ??= 'test';
 process.env.AWS_SECRET_ACCESS_KEY ??= 'test';
@@ -52,8 +52,8 @@ beforeAll(async () => {
   await ensureDocumentIndexes(db);
 
   esClient = createElasticsearchClient(ELASTICSEARCH_NODE);
-  await ensureDocumentsIndex(esClient);
-  const searchIndex = new ElasticsearchSearchIndex(esClient);
+  await ensureDocumentsIndex(esClient, ELASTICSEARCH_INDEX);
+  const searchIndex = new ElasticsearchSearchIndex(esClient, ELASTICSEARCH_INDEX);
 
   const repository = new MongoDocumentRepository(db);
   const awsConfig = { region: 'us-east-1', endpoint: AWS_ENDPOINT };
@@ -83,7 +83,7 @@ beforeAll(async () => {
 afterEach(async () => {
   await db.collection('documents').deleteMany({});
   await esClient.deleteByQuery({
-    index: DOCUMENTS_INDEX,
+    index: ELASTICSEARCH_INDEX,
     query: { match_all: {} },
     refresh: true,
   });

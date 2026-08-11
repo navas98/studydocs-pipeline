@@ -6,6 +6,7 @@ export interface AppConfig {
   s3Bucket: string;
   sqsQueueUrl: string;
   elasticsearchNode: string;
+  elasticsearchIndex: string;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
@@ -37,5 +38,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     s3Bucket,
     sqsQueueUrl,
     elasticsearchNode: env['ELASTICSEARCH_NODE'] ?? 'http://localhost:9200',
+    elasticsearchIndex: env['ELASTICSEARCH_INDEX'] ?? 'documents',
   };
 }

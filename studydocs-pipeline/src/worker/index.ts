@@ -21,7 +21,7 @@ async function main(): Promise<void> {
   await ensureDocumentIndexes(db);
 
   const esClient = createElasticsearchClient(config.elasticsearchNode);
-  await ensureDocumentsIndex(esClient);
+  await ensureDocumentsIndex(esClient, config.elasticsearchIndex);
 
   const awsClientConfig = {
     region: config.awsRegion,
@@ -30,7 +30,7 @@ async function main(): Promise<void> {
   const sqsClient = createSqsClient(awsClientConfig);
   const storage = new S3ObjectStorage(createS3Client(awsClientConfig), config.s3Bucket);
   const repository = new MongoDocumentRepository(db);
-  const searchIndex = new ElasticsearchSearchIndex(esClient);
+  const searchIndex = new ElasticsearchSearchIndex(esClient, config.elasticsearchIndex);
   const useCase = new ProcessDocumentUseCase(
     repository,
     new PdfDocumentProcessor(storage, searchIndex),

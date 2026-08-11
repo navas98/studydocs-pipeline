@@ -36,7 +36,7 @@ export interface AppDeps {
 }
 
 const MAX_UPLOAD_BYTES = 20 * 1024 * 1024; // 20 MB, per section 14 (max size restriction)
-const PUBLIC_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../public');
+const FRONTEND_DIST_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../frontend/dist');
 
 export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   const app = Fastify({
@@ -66,10 +66,10 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     limits: { fileSize: MAX_UPLOAD_BYTES },
   });
 
-  // Minimal demo frontend (section 18, Day 5) — a static page served
+  // Demo frontend (section 18, Day 5) — React SPA built by Vite, served
   // straight from the API so the whole demo runs with one process and no
-  // separate frontend server/CORS setup.
-  await app.register(staticPlugin, { root: PUBLIC_DIR });
+  // separate frontend server/CORS setup in production.
+  await app.register(staticPlugin, { root: FRONTEND_DIST_DIR });
 
   app.get('/openapi.json', async () => app.swagger());
   app.get('/health', async (_request, reply) => {
@@ -81,6 +81,17 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
 
   registerDocumentRoutes(app, deps);
   registerSearchRoutes(app, deps);
+
+  // React Router uses client-side routing (/demo, /decisions have no
+  // matching file on disk), so any unmatched GET falls back to the SPA
+  // shell and lets the browser router take over.
+  app.setNotFoundHandler((request, reply) => {
+    if (request.method !== 'GET') {
+      reply.code(404);
+      return { error: 'Not found' };
+    }
+    return reply.sendFile('index.html');
+  });
 
   return app;
 }

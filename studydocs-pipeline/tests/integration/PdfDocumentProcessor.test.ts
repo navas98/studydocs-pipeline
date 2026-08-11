@@ -14,6 +14,7 @@ import { S3ObjectStorage } from '../../src/infrastructure/s3/S3ObjectStorage.js'
 const AWS_ENDPOINT = process.env.AWS_ENDPOINT_URL ?? 'http://localhost:4566';
 const S3_BUCKET = process.env.S3_BUCKET ?? 'studydocs-pdfs';
 const ELASTICSEARCH_NODE = process.env.ELASTICSEARCH_NODE ?? 'http://localhost:9200';
+const ELASTICSEARCH_INDEX = process.env.ELASTICSEARCH_INDEX ?? 'documents_test';
 
 process.env.AWS_ACCESS_KEY_ID ??= 'test';
 process.env.AWS_SECRET_ACCESS_KEY ??= 'test';
@@ -21,10 +22,10 @@ process.env.AWS_SECRET_ACCESS_KEY ??= 'test';
 const s3Client: S3Client = createS3Client({ region: 'us-east-1', endpoint: AWS_ENDPOINT });
 const storage = new S3ObjectStorage(s3Client, S3_BUCKET);
 const esClient = createElasticsearchClient(ELASTICSEARCH_NODE);
-const processor = new PdfDocumentProcessor(storage, new ElasticsearchSearchIndex(esClient));
+const processor = new PdfDocumentProcessor(storage, new ElasticsearchSearchIndex(esClient, ELASTICSEARCH_INDEX));
 
 beforeAll(async () => {
-  await ensureDocumentsIndex(esClient);
+  await ensureDocumentsIndex(esClient, ELASTICSEARCH_INDEX);
 });
 
 function documentWithStorageKey(storageKey: string): Document {

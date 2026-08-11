@@ -34,6 +34,7 @@ const SQS_QUEUE_URL =
   process.env.SQS_QUEUE_URL ??
   'http://sqs.us-east-1.localhost.localstack.cloud:4566/000000000000/studydocs-processing';
 const ELASTICSEARCH_NODE = process.env.ELASTICSEARCH_NODE ?? 'http://localhost:9200';
+const ELASTICSEARCH_INDEX = process.env.ELASTICSEARCH_INDEX ?? 'documents_test';
 
 process.env.AWS_ACCESS_KEY_ID ??= 'test';
 process.env.AWS_SECRET_ACCESS_KEY ??= 'test';
@@ -54,8 +55,8 @@ beforeAll(async () => {
   sqsClient = createSqsClient(awsConfig);
   const queue = new SqsDocumentQueue(sqsClient, SQS_QUEUE_URL);
   const esClient = createElasticsearchClient(ELASTICSEARCH_NODE);
-  await ensureDocumentsIndex(esClient);
-  const searchIndex = new ElasticsearchSearchIndex(esClient);
+  await ensureDocumentsIndex(esClient, ELASTICSEARCH_INDEX);
+  const searchIndex = new ElasticsearchSearchIndex(esClient, ELASTICSEARCH_INDEX);
   processDocument = new ProcessDocumentUseCase(
     repository,
     new PdfDocumentProcessor(storage, searchIndex),

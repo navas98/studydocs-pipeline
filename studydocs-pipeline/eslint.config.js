@@ -6,9 +6,10 @@ export default tseslint.config(
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
-    // public/ is plain browser JS served as-is (no build step, no Node
-    // globals), so it doesn't belong to this Node/TypeScript lint config.
-    ignores: ['dist/**', 'node_modules/**', 'public/**'],
+    // frontend/ is a separate Vite/React app with its own toolchain (and
+    // its own dist/ build output), so it doesn't belong to this Node/TS
+    // backend lint config.
+    ignores: ['dist/**', 'node_modules/**', 'frontend/**'],
   },
   {
     rules: {

@@ -1,0 +1,177 @@
+@import "tailwindcss";
+@import "@fontsource/inter/400.css";
+@import "@fontsource/inter/500.css";
+@import "@fontsource/inter/600.css";
+@import "@fontsource/space-grotesk/500.css";
+@import "@fontsource/space-grotesk/700.css";
+
+@theme {
+  --color-bg: #000000;
+  --color-bg-elevated: #0a0a0a;
+  --color-card: #0d0d0d;
+  --color-border: #262626;
+  --color-border-hover: #3d3d3d;
+  --color-text: #ffffff;
+  --color-text-muted: #a3a3a3;
+  --color-accent: #5b8cff;
+  --color-accent-2: #a06bff;
+  --color-accent-3: #4fd1c5;
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-display: 'Space Grotesk', 'Inter', sans-serif;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+::selection {
+  background: rgba(91, 140, 255, 0.28);
+  color: var(--color-text);
+}
+
+code {
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+}
+
+/* Ambient background: fixed flat layer behind everything, so scrolling
+   never reveals a hard edge. */
+.ambient-bg {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background: var(--color-bg);
+}
+
+/* Glass surface used by cards throughout the app */
+.glass {
+  background: rgba(10, 10, 10, 0.65);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* Neobrutalist button (uiverse.io style): flat fill, thick border, hard
+   offset shadow that "presses in" on click instead of the usual glow/lift. */
+.btn-neo {
+  display: inline-block;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  text-decoration: none;
+  color: var(--color-text);
+  background: var(--color-bg-elevated);
+  padding: 0.7rem 1.6rem;
+  border-radius: 10px;
+  border: 2px solid var(--color-text);
+  box-shadow: 4px 4px 0 var(--color-text);
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
+}
+
+.btn-neo:hover {
+  filter: brightness(1.15);
+}
+
+.btn-neo:active {
+  box-shadow: none;
+  transform: translate(4px, 4px);
+}
+
+.btn-neo:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  filter: none;
+}
+
+.btn-neo-primary {
+  background: var(--color-accent);
+  box-shadow: 4px 4px 0 var(--color-accent-2);
+}
+
+.btn-neo-danger {
+  border-color: #ff6b6b;
+  color: #ff6b6b;
+  background: transparent;
+  box-shadow: 4px 4px 0 #ff6b6b;
+  padding: 0.4rem 0.9rem;
+  font-size: 0.72rem;
+}
+
+/* Stack card (uiverse.io "rotating gradient border" pattern): a conic
+   gradient spins behind a solid inner panel, showing only as a thin glowing
+   ring around the edge; it speeds up on hover. */
+.stack-card {
+  position: relative;
+  padding: 2px;
+  border-radius: 14px;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.stack-card::before {
+  content: '';
+  position: absolute;
+  inset: -60%;
+  background: conic-gradient(from 0deg, var(--color-accent), var(--color-accent-2), var(--color-accent));
+  animation: stack-card-spin 6s linear infinite;
+  z-index: 0;
+}
+
+.stack-card:hover::before {
+  animation-duration: 1.6s;
+}
+
+.stack-card-inner {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  border-radius: 12px;
+  background: var(--color-bg-elevated);
+  padding: 1.1rem 0.75rem;
+  text-align: center;
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.stack-card:hover .stack-card-inner {
+  transform: translateY(-2px);
+}
+
+@keyframes stack-card-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stack-card::before {
+    animation: none !important;
+  }
+}
+
+.text-gradient {
+  background-image: linear-gradient(120deg, var(--color-accent), var(--color-accent-2) 55%, var(--color-accent-3));
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+@keyframes shine {
+  to {
+    background-position: 200% center;
+  }
+}

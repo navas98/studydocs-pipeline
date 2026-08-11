@@ -5,7 +5,6 @@ import type {
   SearchResult,
 } from '../../application/documents/SearchIndex.js';
 import type { Document } from '../../domain/document/Document.js';
-import { DOCUMENTS_INDEX } from './connection.js';
 
 interface DocumentSearchBody {
   title: string;
@@ -15,7 +14,10 @@ interface DocumentSearchBody {
 }
 
 export class ElasticsearchSearchIndex implements SearchIndex {
-  constructor(private readonly client: Client) {}
+  constructor(
+    private readonly client: Client,
+    private readonly indexName: string,
+  ) {}
 
   async index(document: Document): Promise<void> {
     const props = document.toProps();
@@ -30,7 +32,7 @@ export class ElasticsearchSearchIndex implements SearchIndex {
     // consistency, which keeps demo/test behavior deterministic; a
     // higher-throughput system would rely on the default refresh interval.
     await this.client.index({
-      index: DOCUMENTS_INDEX,
+      index: this.indexName,
       id: document.id,
       document: body,
       refresh: 'wait_for',
@@ -46,15 +48,19 @@ export class ElasticsearchSearchIndex implements SearchIndex {
         multi_match: { query: query.text, fields: ['title', 'subject', 'university', 'tags'] },
       });
     }
+    // match_phrase_prefix instead of an exact term match on the .keyword
+    // subfield: these are free-text inputs in the demo UI, so "Sevilla"
+    // should find "Universidad de Sevilla" rather than requiring the full,
+    // exact, case-sensitive university name.
     if (query.subject) {
-      filter.push({ term: { 'subject.keyword': query.subject } });
+      filter.push({ match_phrase_prefix: { subject: query.subject } });
     }
     if (query.university) {
-      filter.push({ term: { 'university.keyword': query.university } });
+      filter.push({ match_phrase_prefix: { university: query.university } });
     }
 
     const response = await this.client.search<DocumentSearchBody>({
-      index: DOCUMENTS_INDEX,
+      index: this.indexName,
       query: { bool: { must, filter } },
       from: query.offset,
       size: query.limit,

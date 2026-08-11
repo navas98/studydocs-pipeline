@@ -2,26 +2,26 @@ import type { Client } from '@elastic/elasticsearch';
 import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 import {
   createElasticsearchClient,
-  DOCUMENTS_INDEX,
   ensureDocumentsIndex,
 } from '../../src/infrastructure/elasticsearch/connection.js';
 import { ElasticsearchSearchIndex } from '../../src/infrastructure/elasticsearch/ElasticsearchSearchIndex.js';
 import { Document } from '../../src/domain/document/Document.js';
 
 const ELASTICSEARCH_NODE = process.env.ELASTICSEARCH_NODE ?? 'http://localhost:9200';
+const ELASTICSEARCH_INDEX = process.env.ELASTICSEARCH_INDEX ?? 'documents_test';
 
 let client: Client;
 let searchIndex: ElasticsearchSearchIndex;
 
 beforeAll(async () => {
   client = createElasticsearchClient(ELASTICSEARCH_NODE);
-  await ensureDocumentsIndex(client);
-  searchIndex = new ElasticsearchSearchIndex(client);
+  await ensureDocumentsIndex(client, ELASTICSEARCH_INDEX);
+  searchIndex = new ElasticsearchSearchIndex(client, ELASTICSEARCH_INDEX);
 });
 
 afterEach(async () => {
   await client.deleteByQuery({
-    index: DOCUMENTS_INDEX,
+    index: ELASTICSEARCH_INDEX,
     query: { match_all: {} },
     refresh: true,
   });
