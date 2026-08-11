@@ -15,7 +15,7 @@ export class RetryDocumentUseCase {
     private readonly queue: DocumentQueue,
   ) {}
 
-  async execute(documentId: string): Promise<Document> {
+  async execute(documentId: string, correlationId?: string): Promise<Document> {
     const document = await this.documents.findById(documentId);
     if (!document) {
       throw new DocumentNotFoundError(documentId);
@@ -26,7 +26,7 @@ export class RetryDocumentUseCase {
 
     await this.queue.publishProcessingRequested({
       documentId: document.id,
-      correlationId: randomUUID(),
+      correlationId: correlationId ?? randomUUID(),
     });
 
     return document;

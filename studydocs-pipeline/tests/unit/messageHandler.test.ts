@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest';
+import type { Logger } from '../../src/application/Logger.js';
 import type { DocumentProcessor } from '../../src/application/documents/DocumentProcessor.js';
 import type { DocumentRepository } from '../../src/application/documents/DocumentRepository.js';
 import { ProcessDocumentUseCase } from '../../src/application/documents/ProcessDocument.js';
 import { TransientProcessingError } from '../../src/application/documents/processingErrors.js';
 import { Document } from '../../src/domain/document/Document.js';
 import { handleMessage } from '../../src/worker/messageHandler.js';
+
+const noopLogger: Logger = { info: () => {}, error: () => {} };
 
 class InMemoryDocumentRepository implements DocumentRepository {
   private readonly store = new Map<string, Document>();
@@ -41,7 +44,7 @@ describe('handleMessage', () => {
     const document = queuedDocument();
     await repo.save(document);
     const processor: DocumentProcessor = { process: async () => {} };
-    const useCase = new ProcessDocumentUseCase(repo, processor);
+    const useCase = new ProcessDocumentUseCase(repo, processor, noopLogger);
 
     const outcome = await handleMessage(
       useCase,
@@ -60,7 +63,7 @@ describe('handleMessage', () => {
         throw new TransientProcessingError('boom');
       },
     };
-    const useCase = new ProcessDocumentUseCase(repo, processor);
+    const useCase = new ProcessDocumentUseCase(repo, processor, noopLogger);
 
     const outcome = await handleMessage(
       useCase,
@@ -73,7 +76,7 @@ describe('handleMessage', () => {
   it('acks a message for a document that no longer exists', async () => {
     const repo = new InMemoryDocumentRepository();
     const processor: DocumentProcessor = { process: async () => {} };
-    const useCase = new ProcessDocumentUseCase(repo, processor);
+    const useCase = new ProcessDocumentUseCase(repo, processor, noopLogger);
 
     const outcome = await handleMessage(
       useCase,

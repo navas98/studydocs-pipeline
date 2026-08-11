@@ -1,9 +1,13 @@
 import { describe, expect, it } from 'vitest';
+import type { Logger } from '../../src/application/Logger.js';
 import type { DocumentProcessor } from '../../src/application/documents/DocumentProcessor.js';
 import type { DocumentRepository } from '../../src/application/documents/DocumentRepository.js';
 import { ProcessDocumentUseCase } from '../../src/application/documents/ProcessDocument.js';
 import { PermanentProcessingError, TransientProcessingError } from '../../src/application/documents/processingErrors.js';
 import { Document } from '../../src/domain/document/Document.js';
+
+const noopLogger: Logger = { info: () => {}, error: () => {} };
+const CORRELATION_ID = 'test-correlation-id';
 
 class InMemoryDocumentRepository implements DocumentRepository {
   private readonly store = new Map<string, Document>();
@@ -18,6 +22,10 @@ class InMemoryDocumentRepository implements DocumentRepository {
 
   async findByOwner(): Promise<Document[]> {
     return [];
+  }
+
+  async updateWithVersionCheck(): Promise<boolean> {
+    throw new Error('not used in this test');
   }
 }
 
@@ -51,8 +59,8 @@ describe('ProcessDocumentUseCase', () => {
     const document = queuedDocument();
     await repo.save(document);
 
-    const useCase = new ProcessDocumentUseCase(repo, new AlwaysSucceedsProcessor());
-    const outcome = await useCase.execute(document.id);
+    const useCase = new ProcessDocumentUseCase(repo, new AlwaysSucceedsProcessor(), noopLogger);
+    const outcome = await useCase.execute(document.id, CORRELATION_ID);
 
     expect(outcome).toBe('INDEXED');
     expect((await repo.findById(document.id))?.status).toBe('INDEXED');
@@ -66,8 +74,9 @@ describe('ProcessDocumentUseCase', () => {
     const useCase = new ProcessDocumentUseCase(
       repo,
       new AlwaysFailsProcessor(new TransientProcessingError('S3 timeout')),
+      noopLogger,
     );
-    const outcome = await useCase.execute(document.id);
+    const outcome = await useCase.execute(document.id, CORRELATION_ID);
 
     expect(outcome).toBe('RETRYING');
     const stored = await repo.findById(document.id);
@@ -83,8 +92,9 @@ describe('ProcessDocumentUseCase', () => {
     const useCase = new ProcessDocumentUseCase(
       repo,
       new AlwaysFailsProcessor(new PermanentProcessingError('not a real PDF')),
+      noopLogger,
     );
-    const outcome = await useCase.execute(document.id);
+    const outcome = await useCase.execute(document.id, CORRELATION_ID);
 
     expect(outcome).toBe('FAILED');
     expect((await repo.findById(document.id))?.status).toBe('FAILED');
@@ -98,11 +108,12 @@ describe('ProcessDocumentUseCase', () => {
     const useCase = new ProcessDocumentUseCase(
       repo,
       new AlwaysFailsProcessor(new TransientProcessingError('S3 timeout')),
+      noopLogger,
     );
 
-    await useCase.execute(document.id); // attempt 1 -> RETRYING
-    await useCase.execute(document.id); // attempt 2 -> RETRYING
-    const outcome = await useCase.execute(document.id); // attempt 3 -> FAILED
+    await useCase.execute(document.id, CORRELATION_ID); // attempt 1 -> RETRYING
+    await useCase.execute(document.id, CORRELATION_ID); // attempt 2 -> RETRYING
+    const outcome = await useCase.execute(document.id, CORRELATION_ID); // attempt 3 -> FAILED
 
     expect(outcome).toBe('FAILED');
     expect((await repo.findById(document.id))?.processingAttempts).toBe(3);
@@ -116,8 +127,8 @@ describe('ProcessDocumentUseCase', () => {
     await repo.save(document);
 
     const processor = new AlwaysSucceedsProcessor();
-    const useCase = new ProcessDocumentUseCase(repo, processor);
-    const outcome = await useCase.execute(document.id);
+    const useCase = new ProcessDocumentUseCase(repo, processor, noopLogger);
+    const outcome = await useCase.execute(document.id, CORRELATION_ID);
 
     expect(outcome).toBe('SKIPPED_ALREADY_TERMINAL');
     expect((await repo.findById(document.id))?.version).toBe(document.version);
@@ -130,17 +141,17 @@ describe('ProcessDocumentUseCase', () => {
     document.fail('boom');
     await repo.save(document);
 
-    const useCase = new ProcessDocumentUseCase(repo, new AlwaysSucceedsProcessor());
-    const outcome = await useCase.execute(document.id);
+    const useCase = new ProcessDocumentUseCase(repo, new AlwaysSucceedsProcessor(), noopLogger);
+    const outcome = await useCase.execute(document.id, CORRELATION_ID);
 
     expect(outcome).toBe('SKIPPED_ALREADY_TERMINAL');
   });
 
   it('skips a message pointing at a document that no longer exists', async () => {
     const repo = new InMemoryDocumentRepository();
-    const useCase = new ProcessDocumentUseCase(repo, new AlwaysSucceedsProcessor());
+    const useCase = new ProcessDocumentUseCase(repo, new AlwaysSucceedsProcessor(), noopLogger);
 
-    const outcome = await useCase.execute('does-not-exist');
+    const outcome = await useCase.execute('does-not-exist', CORRELATION_ID);
 
     expect(outcome).toBe('SKIPPED_NOT_FOUND');
   });

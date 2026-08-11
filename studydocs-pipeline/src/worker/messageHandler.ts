@@ -18,7 +18,7 @@ export async function handleMessage(
   rawBody: string,
 ): Promise<MessageOutcome> {
   const body = JSON.parse(rawBody) as ProcessingRequestedBody;
-  const outcome = await useCase.execute(body.documentId);
+  const outcome = await useCase.execute(body.documentId, body.correlationId);
 
   switch (outcome) {
     case 'INDEXED':

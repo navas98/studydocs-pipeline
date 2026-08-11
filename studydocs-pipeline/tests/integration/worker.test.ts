@@ -10,6 +10,8 @@ import {
   ensureDocumentsIndex,
 } from '../../src/infrastructure/elasticsearch/connection.js';
 import { ElasticsearchSearchIndex } from '../../src/infrastructure/elasticsearch/ElasticsearchSearchIndex.js';
+import { logger } from '../../src/infrastructure/logging/logger.js';
+import { PinoLogger } from '../../src/infrastructure/logging/PinoLogger.js';
 import { connectMongo, ensureDocumentIndexes } from '../../src/infrastructure/mongodb/connection.js';
 import { MongoDocumentRepository } from '../../src/infrastructure/mongodb/MongoDocumentRepository.js';
 import { PdfDocumentProcessor } from '../../src/infrastructure/pdf/PdfDocumentProcessor.js';
@@ -51,7 +53,11 @@ beforeAll(async () => {
   const repository = new MongoDocumentRepository(db);
   createDocument = new CreateDocumentUseCase(repository);
   completeUpload = new CompleteUploadUseCase(repository, storage, new SqsDocumentQueue(sqsClient, SQS_QUEUE_URL));
-  processDocument = new ProcessDocumentUseCase(repository, new PdfDocumentProcessor(storage, searchIndex));
+  processDocument = new ProcessDocumentUseCase(
+    repository,
+    new PdfDocumentProcessor(storage, searchIndex),
+    new PinoLogger(logger),
+  );
 });
 
 beforeEach(async () => {

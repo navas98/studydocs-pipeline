@@ -214,6 +214,7 @@ export function registerDocumentRoutes(app: FastifyInstance, deps: DocumentRoute
           documentId: id,
           file: fileBuffer,
           mimeType: uploadedFile.mimetype,
+          correlationId: request.id,
         });
         reply.code(202);
         return toDocumentResponse(document);
@@ -251,7 +252,7 @@ export function registerDocumentRoutes(app: FastifyInstance, deps: DocumentRoute
       const { id } = request.params as { id: string };
 
       try {
-        const document = await deps.retryDocument.execute(id);
+        const document = await deps.retryDocument.execute(id, request.id);
         reply.code(202);
         return toDocumentResponse(document);
       } catch (error) {

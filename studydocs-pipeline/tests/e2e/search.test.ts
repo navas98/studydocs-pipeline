@@ -19,6 +19,8 @@ import {
   ensureDocumentsIndex,
 } from '../../src/infrastructure/elasticsearch/connection.js';
 import { ElasticsearchSearchIndex } from '../../src/infrastructure/elasticsearch/ElasticsearchSearchIndex.js';
+import { logger } from '../../src/infrastructure/logging/logger.js';
+import { PinoLogger } from '../../src/infrastructure/logging/PinoLogger.js';
 import { connectMongo, ensureDocumentIndexes } from '../../src/infrastructure/mongodb/connection.js';
 import { MongoDocumentRepository } from '../../src/infrastructure/mongodb/MongoDocumentRepository.js';
 import { PdfDocumentProcessor } from '../../src/infrastructure/pdf/PdfDocumentProcessor.js';
@@ -56,7 +58,11 @@ beforeAll(async () => {
   const storage = new S3ObjectStorage(createS3Client(awsConfig), S3_BUCKET);
   sqsClient = createSqsClient(awsConfig);
   const queue = new SqsDocumentQueue(sqsClient, SQS_QUEUE_URL);
-  processDocument = new ProcessDocumentUseCase(repository, new PdfDocumentProcessor(storage, searchIndex));
+  processDocument = new ProcessDocumentUseCase(
+    repository,
+    new PdfDocumentProcessor(storage, searchIndex),
+    new PinoLogger(logger),
+  );
 
   app = await buildApp({
     createDocument: new CreateDocumentUseCase(repository),
@@ -139,7 +145,7 @@ async function createIndexedDocument(overrides: Record<string, unknown> = {}) {
     payload: body,
   });
 
-  await processDocument.execute(id);
+  await processDocument.execute(id, 'test-correlation-id');
   return id;
 }
 

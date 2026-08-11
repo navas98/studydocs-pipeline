@@ -1,3 +1,4 @@
+import type { Logger } from '../Logger.js';
 import type { DocumentProcessor } from './DocumentProcessor.js';
 import type { DocumentRepository } from './DocumentRepository.js';
 import { PermanentProcessingError } from './processingErrors.js';
@@ -14,11 +15,13 @@ export class ProcessDocumentUseCase {
   constructor(
     private readonly documents: DocumentRepository,
     private readonly processor: DocumentProcessor,
+    private readonly logger: Logger,
   ) {}
 
-  async execute(documentId: string): Promise<ProcessDocumentOutcome> {
+  async execute(documentId: string, correlationId: string): Promise<ProcessDocumentOutcome> {
     const document = await this.documents.findById(documentId);
     if (!document) {
+      this.logger.error({ documentId, correlationId }, 'document not found, skipping message');
       return 'SKIPPED_NOT_FOUND';
     }
 
@@ -26,16 +29,28 @@ export class ProcessDocumentUseCase {
     // terminal state: nothing to do, and re-running beginProcessing() would
     // throw (the state machine forbids leaving INDEXED/FAILED).
     if (document.status === 'INDEXED' || document.status === 'FAILED') {
+      this.logger.info(
+        { documentId, correlationId, status: document.status },
+        'document already in a terminal state, skipping duplicate message',
+      );
       return 'SKIPPED_ALREADY_TERMINAL';
     }
 
     document.beginProcessing();
     await this.documents.save(document);
+    this.logger.info(
+      { documentId, correlationId, attempt: document.processingAttempts },
+      'processing started',
+    );
 
     try {
       await this.processor.process(document);
       document.markIndexed();
       await this.documents.save(document);
+      this.logger.info(
+        { documentId, correlationId, attempt: document.processingAttempts },
+        'processing succeeded, document indexed',
+      );
       return 'INDEXED';
     } catch (error) {
       const isPermanent = error instanceof PermanentProcessingError;
@@ -45,11 +60,19 @@ export class ProcessDocumentUseCase {
       if (isPermanent || attemptsExhausted) {
         document.fail(reason);
         await this.documents.save(document);
+        this.logger.error(
+          { documentId, correlationId, attempt: document.processingAttempts, reason },
+          'processing failed permanently',
+        );
         return 'FAILED';
       }
 
       document.retry(reason);
       await this.documents.save(document);
+      this.logger.error(
+        { documentId, correlationId, attempt: document.processingAttempts, reason },
+        'processing failed transiently, will retry',
+      );
       return 'RETRYING';
     }
   }

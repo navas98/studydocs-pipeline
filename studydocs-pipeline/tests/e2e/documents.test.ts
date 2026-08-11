@@ -16,11 +16,14 @@ import {
   ensureDocumentsIndex,
 } from '../../src/infrastructure/elasticsearch/connection.js';
 import { ElasticsearchSearchIndex } from '../../src/infrastructure/elasticsearch/ElasticsearchSearchIndex.js';
+import { logger } from '../../src/infrastructure/logging/logger.js';
+import { PinoLogger } from '../../src/infrastructure/logging/PinoLogger.js';
 import { connectMongo, ensureDocumentIndexes } from '../../src/infrastructure/mongodb/connection.js';
 import { MongoDocumentRepository } from '../../src/infrastructure/mongodb/MongoDocumentRepository.js';
 import { PdfDocumentProcessor } from '../../src/infrastructure/pdf/PdfDocumentProcessor.js';
 import { S3ObjectStorage } from '../../src/infrastructure/s3/S3ObjectStorage.js';
 import { SqsDocumentQueue } from '../../src/infrastructure/sqs/SqsDocumentQueue.js';
+import { DeleteMessageCommand, ReceiveMessageCommand, SQSClient } from '@aws-sdk/client-sqs';
 
 const MONGO_URI = process.env.MONGO_URI ?? 'mongodb://localhost:27017/studydocs_test';
 const AWS_ENDPOINT = process.env.AWS_ENDPOINT_URL ?? 'http://localhost:4566';
@@ -37,6 +40,7 @@ let client: MongoClient;
 let db: Db;
 let app: FastifyInstance;
 let processDocument: ProcessDocumentUseCase;
+let sqsClient: SQSClient;
 
 beforeAll(async () => {
   ({ client, db } = await connectMongo(MONGO_URI));
@@ -45,11 +49,16 @@ beforeAll(async () => {
   const repository = new MongoDocumentRepository(db);
   const awsConfig = { region: 'us-east-1', endpoint: AWS_ENDPOINT };
   const storage = new S3ObjectStorage(createS3Client(awsConfig), S3_BUCKET);
-  const queue = new SqsDocumentQueue(createSqsClient(awsConfig), SQS_QUEUE_URL);
+  sqsClient = createSqsClient(awsConfig);
+  const queue = new SqsDocumentQueue(sqsClient, SQS_QUEUE_URL);
   const esClient = createElasticsearchClient(ELASTICSEARCH_NODE);
   await ensureDocumentsIndex(esClient);
   const searchIndex = new ElasticsearchSearchIndex(esClient);
-  processDocument = new ProcessDocumentUseCase(repository, new PdfDocumentProcessor(storage, searchIndex));
+  processDocument = new ProcessDocumentUseCase(
+    repository,
+    new PdfDocumentProcessor(storage, searchIndex),
+    new PinoLogger(logger),
+  );
 
   app = await buildApp({
     createDocument: new CreateDocumentUseCase(repository),
@@ -71,6 +80,24 @@ afterAll(async () => {
   await app.close();
   await client.close();
 });
+
+async function purgeQueue(): Promise<void> {
+  let result = await sqsClient.send(
+    new ReceiveMessageCommand({ QueueUrl: SQS_QUEUE_URL, MaxNumberOfMessages: 10, WaitTimeSeconds: 1 }),
+  );
+  while (result.Messages?.length) {
+    await Promise.all(
+      result.Messages.map((message) =>
+        sqsClient.send(
+          new DeleteMessageCommand({ QueueUrl: SQS_QUEUE_URL, ReceiptHandle: message.ReceiptHandle! }),
+        ),
+      ),
+    );
+    result = await sqsClient.send(
+      new ReceiveMessageCommand({ QueueUrl: SQS_QUEUE_URL, MaxNumberOfMessages: 10, WaitTimeSeconds: 1 }),
+    );
+  }
+}
 
 function buildMultipartUpload(content: string, mimeType = 'application/pdf') {
   const boundary = '----studydocsTestBoundary';
@@ -262,7 +289,7 @@ describe('Documents HTTP API', () => {
     });
 
     // Drive it to FAILED directly (bypassing the SQS hop, like search.test.ts does).
-    await processDocument.execute(id);
+    await processDocument.execute(id, 'test-correlation-id');
     const failed = await app.inject({ method: 'GET', url: `/documents/${id}` });
     expect(failed.json().status).toBe('FAILED');
 
@@ -287,5 +314,35 @@ describe('Documents HTTP API', () => {
   it('returns 404 when retrying a document that does not exist', async () => {
     const response = await app.inject({ method: 'POST', url: '/documents/does-not-exist/retry' });
     expect(response.statusCode).toBe(404);
+  });
+
+  it('propagates a caller-supplied correlation id from the request to the SQS message and echoes it back', async () => {
+    await purgeQueue();
+    const created = await app.inject({ method: 'POST', url: '/documents', payload: validPayload() });
+    const { id } = created.json();
+    const { body, contentType } = buildMultipartUpload('%PDF-1.4 fake content');
+    const correlationId = 'my-custom-correlation-id';
+
+    const response = await app.inject({
+      method: 'POST',
+      url: `/documents/${id}/complete-upload`,
+      headers: { 'content-type': contentType, 'x-correlation-id': correlationId },
+      payload: body,
+    });
+
+    expect(response.headers['x-correlation-id']).toBe(correlationId);
+
+    const received = await sqsClient.send(
+      new ReceiveMessageCommand({ QueueUrl: SQS_QUEUE_URL, MaxNumberOfMessages: 1, WaitTimeSeconds: 2 }),
+    );
+    const message = JSON.parse(received.Messages?.[0]?.Body ?? '{}');
+    expect(message.correlationId).toBe(correlationId);
+
+    await purgeQueue();
+  });
+
+  it('generates a correlation id when the caller does not supply one', async () => {
+    const response = await app.inject({ method: 'GET', url: '/health' });
+    expect(response.headers['x-correlation-id']).toBeDefined();
   });
 });

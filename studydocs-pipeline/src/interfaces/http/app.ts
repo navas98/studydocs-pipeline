@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import Fastify, { type FastifyInstance } from 'fastify';
 import multipart from '@fastify/multipart';
 import swagger from '@fastify/swagger';
@@ -24,7 +25,20 @@ export interface AppDeps {
 const MAX_UPLOAD_BYTES = 20 * 1024 * 1024; // 20 MB, per section 14 (max size restriction)
 
 export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
-  const app = Fastify({ logger: true });
+  const app = Fastify({
+    logger: true,
+    // Trust a caller-supplied correlation id (section 15) so it can be
+    // traced through the API, SQS and worker logs as one thread; generate
+    // one otherwise. Echoed back via the x-correlation-id response header.
+    genReqId: (request) => {
+      const provided = request.headers['x-correlation-id'];
+      return typeof provided === 'string' && provided.length > 0 ? provided : randomUUID();
+    },
+  });
+
+  app.addHook('onSend', async (request, reply) => {
+    reply.header('x-correlation-id', request.id);
+  });
 
   await app.register(swagger, {
     openapi: {

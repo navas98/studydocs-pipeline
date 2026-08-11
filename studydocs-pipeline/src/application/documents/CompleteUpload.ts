@@ -9,6 +9,10 @@ export interface CompleteUploadCommand {
   documentId: string;
   file: Buffer;
   mimeType: string;
+  // Propagated from the HTTP request (section 15: correlation id from API
+  // through to the worker); falls back to a fresh id for callers that
+  // don't have one (e.g. tests, scripts).
+  correlationId?: string;
 }
 
 // Orchestrates the "PDF stored + processing queued" step from section 4.1
@@ -39,7 +43,7 @@ export class CompleteUploadUseCase {
 
     await this.queue.publishProcessingRequested({
       documentId: document.id,
-      correlationId: randomUUID(),
+      correlationId: command.correlationId ?? randomUUID(),
     });
 
     return document;

@@ -6,6 +6,8 @@ import {
   ensureDocumentsIndex,
 } from '../infrastructure/elasticsearch/connection.js';
 import { ElasticsearchSearchIndex } from '../infrastructure/elasticsearch/ElasticsearchSearchIndex.js';
+import { logger } from '../infrastructure/logging/logger.js';
+import { PinoLogger } from '../infrastructure/logging/PinoLogger.js';
 import { connectMongo, ensureDocumentIndexes } from '../infrastructure/mongodb/connection.js';
 import { MongoDocumentRepository } from '../infrastructure/mongodb/MongoDocumentRepository.js';
 import { PdfDocumentProcessor } from '../infrastructure/pdf/PdfDocumentProcessor.js';
@@ -31,20 +33,21 @@ async function main(): Promise<void> {
   const useCase = new ProcessDocumentUseCase(
     repository,
     new PdfDocumentProcessor(storage, searchIndex),
+    new PinoLogger(logger),
   );
 
-  console.log('Worker started, polling', config.sqsQueueUrl);
+  logger.info({ queueUrl: config.sqsQueueUrl }, 'worker started, polling');
 
   while (true) {
     try {
       await pollOnce(sqsClient, config.sqsQueueUrl, useCase);
     } catch (error) {
-      console.error('Worker poll failed', error);
+      logger.error({ err: error }, 'worker poll failed');
     }
   }
 }
 
 main().catch((error: unknown) => {
-  console.error(error);
+  logger.error({ err: error }, 'worker crashed');
   process.exit(1);
 });
