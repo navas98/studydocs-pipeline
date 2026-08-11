@@ -51,8 +51,11 @@ consultar estado), el trade-off favorece claramente tener el índice.
 
 ## Qué cambiaría a mayor escala
 
-- Con 10× más tráfico de lectura, este índice sigue siendo suficiente: el coste por consulta no depende
-  del tráfico, solo del tamaño de la colección y el índice ya lo acota.
+- Con 10× más tráfico de lectura, el índice sigue siendo apropiado para este patrón de acceso: el plan de
+  ejecución de cada consulta individual no cambia, solo depende del tamaño de la colección, no del
+  tráfico. Eso no significa que el sistema entero escale gratis a ese tráfico — el pool de conexiones, la
+  CPU disponible y la presión de I/O sobre MongoDB sí se ven afectados por más tráfico concurrente; ese es
+  un problema de capacidad del servidor, distinto del que resuelve este índice.
 - Con 100× más documentos por propietario, la paginación (ya limitada a un máximo de 100 por página en
   `ListDocumentsUseCase`) seguiría acotando el trabajo por petición; el índice compuesto sigue sirviendo
   igual de bien porque `createdAt` ya está ordenado dentro de cada `ownerId`.

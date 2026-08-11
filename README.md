@@ -1,8 +1,11 @@
 # StudyDocs Pipeline
 
-> Backend portfolio project — subida, procesamiento asíncrono, búsqueda e indexación de apuntes en PDF.
+[![CI](https://github.com/navas98/studydocs-pipeline/actions/workflows/ci.yml/badge.svg)](https://github.com/navas98/studydocs-pipeline/actions/workflows/ci.yml)
 
-**No es el producto real de Wuolah.** Es un sistema construido desde cero para demostrar cómo abordo el
+> Construido como respuesta técnica a una candidatura para el puesto de Backend Engineer en Wuolah:
+> subida, procesamiento asíncrono, búsqueda e indexación de apuntes en PDF.
+
+**No es el producto real de Wuolah** — es un sistema construido desde cero para demostrar cómo abordo el
 diseño, la implementación y la fiabilidad de un backend real: arquitectura hexagonal, procesamiento
 asíncrono desacoplado vía colas, concurrencia segura, búsqueda full-text, observabilidad y una suite de
 tests que corre contra infraestructura real en lugar de mocks.
@@ -70,9 +73,45 @@ El dominio no sabe que existen Mongo, S3 o Elasticsearch; los casos de uso depen
 y testear cada adaptador por separado contra infraestructura real.
 
 Las decisiones de diseño (por qué está construido así, no solo qué hace) están documentadas como ADRs en
-la página **[/decisions](http://localhost:3000/decisions)** del propio proyecto — concurrencia optimista,
+[`docs/decisions/`](docs/decisions/) y, con la misma información en formato visual, en la página
+**[/decisions](http://localhost:3000/decisions)** del propio proyecto — concurrencia optimista,
 idempotencia en el worker, mapping de Elasticsearch, testing sin mocks, manejo de errores centralizado,
 correlation IDs, y por qué el frontend es una SPA de React servida como build estático.
+
+## Trade-offs
+
+- **Un worker, no cinco microservicios.** El procesamiento (validar PDF, indexar) es un único paso
+  secuencial y ligero; separarlo en varios servicios solo añadiría saltos de red y despliegues que
+  coordinar sin ganar nada, ya que no hay partes con necesidades de escalado distintas entre sí.
+- **Elasticsearch es derivado, MongoDB es la fuente de verdad.** El índice de búsqueda se puede borrar y
+  reconstruir a partir de Mongo en cualquier momento sin pérdida de datos; nunca se escribe primero en
+  Elasticsearch. Esto simplifica el modelo mental: solo hay un sitio donde el estado de un documento es
+  definitivo.
+- **SQS obliga a que procesar sea idempotente.** La entrega "at-least-once" significa que el mismo
+  mensaje puede procesarse más de una vez; en vez de luchar contra eso (deduplicación, locks
+  distribuidos), el procesamiento está diseñado para que reprocesar un documento ya indexado sea
+  simplemente redundante, no incorrecto.
+
+## Rendimiento
+
+Medición real, no estimada: `GET /documents?ownerId=` sembrando 50.000 documentos (25 del propietario
+consultado, un ratio deliberadamente desfavorable) y comparando `explain('executionStats')` antes y
+después de un índice compuesto `{ ownerId: 1, createdAt: -1 }`.
+
+| | Documentos examinados | Tiempo |
+|---|---|---|
+| Sin índice (`COLLSCAN`) | 50.000 | 27 ms |
+| Con índice (`IXSCAN`) | 25 | 1 ms |
+
+Metodología completa, interpretación y qué cambiaría a mayor escala en
+[`docs/performance.md`](docs/performance.md) — incluye también un test de carga ligero contra la API.
+Los números son de un portátil de desarrollo, no de producción; lo relevante es la diferencia relativa
+entre planes de ejecución, no los milisegundos absolutos.
+
+```bash
+npm run perf:mongo   # explain() antes/después del índice, sembrando 50k documentos
+npm run perf:load     # carga ligera vía app.inject(), sin red real
+```
 
 ## Máquina de estados de un documento
 
@@ -154,16 +193,6 @@ npm test
 > `dev`/el worker (`documents`), configurable vía `ELASTICSEARCH_INDEX`, así que correr la suite no borra
 > los datos de una demo en marcha.
 
-## Rendimiento
-
-Análisis de un patrón de acceso real (`GET /documents?ownerId=`) antes/después de un índice compuesto en
-MongoDB, y un test de carga ligero contra la API: [`docs/performance.md`](docs/performance.md).
-
-```bash
-npm run perf:mongo   # explain() antes/después del índice, sembrando 50k documentos
-npm run perf:load     # carga ligera vía app.inject(), sin red real
-```
-
 ## Variables de entorno
 
 Ver [`.env.example`](.env.example). Todas apuntan a los servicios de `docker-compose.yml` por defecto —
@@ -173,14 +202,17 @@ no hace falta cambiar nada para desarrollo local.
 
 ```
 .
-├── src/                # Backend (dominio, aplicación, infraestructura, HTTP, worker)
-├── tests/               # unit/, integration/, e2e/
-├── frontend/             # SPA React (portada, demo, decisiones técnicas)
-├── docs/                 # Reportes de rendimiento y notas de arquitectura
-├── postman/              # Colección para pruebas manuales de la API
-├── scripts/               # Scripts de análisis de rendimiento y carga
-├── infra/                # Scripts de inicialización de LocalStack
-└── docker-compose.yml     # MongoDB, LocalStack (S3+SQS), Elasticsearch
+├── src/                    # Backend (dominio, aplicación, infraestructura, HTTP, worker)
+├── tests/                   # unit/, integration/, e2e/
+├── frontend/                 # SPA React (portada, demo, decisiones técnicas)
+├── docs/
+│   ├── decisions/             # ADRs en Markdown (ver Arquitectura)
+│   └── performance.md          # Ver Rendimiento
+├── postman/                  # Colección para pruebas manuales de la API
+├── scripts/                   # Scripts de análisis de rendimiento y carga
+├── infra/                    # Scripts de inicialización de LocalStack
+├── .github/workflows/ci.yml   # typecheck + lint + test en cada push/PR
+└── docker-compose.yml         # MongoDB, LocalStack (S3+SQS), Elasticsearch
 ```
 
 ## Autor
