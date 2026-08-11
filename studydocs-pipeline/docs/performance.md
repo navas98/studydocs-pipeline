@@ -59,3 +59,46 @@ consultar estado), el trade-off favorece claramente tener el índice.
 - Con una tasa de escritura mucho mayor (p. ej. miles de documentos/segundo), el coste de mantenimiento
   de este índice adicional empezaría a pesar más y merecería revisión, pero está fuera del alcance
   realista de esta demo de 5 días.
+
+## Prueba ligera de carga (endpoints representativos)
+
+Medición generada con `npm run perf:load` (`scripts/loadTest.ts`) el 2026-08-11.
+
+**Metodología**: 200 peticiones por endpoint, concurrencia 20, ejecutadas contra la
+app real (Mongo/S3/SQS/Elasticsearch reales) vía `app.inject()` en vez de un servidor HTTP separado —
+evita el coste de red/TCP, así que estos números son un límite inferior de la latencia real, no una
+medición de producción. Entorno: portátil de desarrollo, sin aislamiento de recursos.
+
+### **POST /documents (crear metadatos)**
+
+- min: 13.2 ms
+- p50: 41.3 ms
+- p95: 98.5 ms
+- p99: 128.7 ms
+- max: 129.4 ms
+- errors: 0 / 200
+
+### **GET /documents?ownerId=... (listado paginado)**
+
+- min: 28.6 ms
+- p50: 57.5 ms
+- p95: 66.0 ms
+- p99: 85.4 ms
+- max: 151.3 ms
+- errors: 0 / 200
+
+### Interpretación
+
+`POST /documents` solo escribe en MongoDB (sin tocar S3/SQS/Elasticsearch), por lo que su latencia
+refleja principalmente el coste de una escritura simple. `GET /documents` usa el índice
+`{ownerId, createdAt}` creado en el Día 1, por lo que su p95/p99 se mantiene bajo incluso con
+200 peticiones concurrentes contra los mismos datos.
+
+### Cuellos de botella y qué cambiaría a mayor escala
+
+- El cuello de botella más probable a mayor escala no es MongoDB (ya indexado), sino el pool de
+  conexiones por defecto del driver y el hilo único de Node.js para JSON parsing/serialización bajo
+  carga muy alta.
+- Con 10×-100× más tráfico, el primer paso sería medir con un servidor HTTP real bajo una herramienta
+  de carga dedicada (k6, autocannon) en vez de `inject()`, y considerar escalar horizontalmente la API
+  (es stateless) detrás de un balanceador.

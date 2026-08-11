@@ -14,7 +14,8 @@
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "perf:mongo": "tsx scripts/analyzeMongoPerformance.ts"
+    "perf:mongo": "tsx scripts/analyzeMongoPerformance.ts",
+    "perf:load": "tsx scripts/loadTest.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.658.0",
