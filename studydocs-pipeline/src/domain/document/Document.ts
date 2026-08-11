@@ -131,6 +131,16 @@ export class Document {
     this.props.failureReason = sanitizeFailureReason(reason);
   }
 
+  // Manual retry (POST /documents/:id/retry, section 9): only valid from
+  // FAILED. Resets processingAttempts so the document gets a full fresh
+  // budget — a human triggered this, presumably because whatever caused
+  // the failure has since been addressed.
+  retryFromFailure(): void {
+    this.transitionTo('QUEUED');
+    this.props.processingAttempts = 0;
+    this.props.failureReason = null;
+  }
+
   // Metadata edits don't change `status`, but still bump `version` — the
   // field section 13 of the design doc uses for optimistic concurrency, so
   // two clients editing the same document can be told apart regardless of

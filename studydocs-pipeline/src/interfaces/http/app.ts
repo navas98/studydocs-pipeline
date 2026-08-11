@@ -5,6 +5,7 @@ import type { CompleteUploadUseCase } from '../../application/documents/Complete
 import type { CreateDocumentUseCase } from '../../application/documents/CreateDocument.js';
 import type { GetDocumentUseCase } from '../../application/documents/GetDocument.js';
 import type { ListDocumentsUseCase } from '../../application/documents/ListDocuments.js';
+import type { RetryDocumentUseCase } from '../../application/documents/RetryDocument.js';
 import type { SearchDocumentsUseCase } from '../../application/documents/SearchDocuments.js';
 import type { UpdateDocumentMetadataUseCase } from '../../application/documents/UpdateDocumentMetadata.js';
 import { registerDocumentRoutes } from './routes/documents.js';
@@ -17,6 +18,7 @@ export interface AppDeps {
   completeUpload: CompleteUploadUseCase;
   searchDocuments: SearchDocumentsUseCase;
   updateDocumentMetadata: UpdateDocumentMetadataUseCase;
+  retryDocument: RetryDocumentUseCase;
 }
 
 const MAX_UPLOAD_BYTES = 20 * 1024 * 1024; // 20 MB, per section 14 (max size restriction)

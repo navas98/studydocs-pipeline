@@ -3,6 +3,7 @@ import { CompleteUploadUseCase } from '../../application/documents/CompleteUploa
 import { CreateDocumentUseCase } from '../../application/documents/CreateDocument.js';
 import { GetDocumentUseCase } from '../../application/documents/GetDocument.js';
 import { ListDocumentsUseCase } from '../../application/documents/ListDocuments.js';
+import { RetryDocumentUseCase } from '../../application/documents/RetryDocument.js';
 import { SearchDocumentsUseCase } from '../../application/documents/SearchDocuments.js';
 import { UpdateDocumentMetadataUseCase } from '../../application/documents/UpdateDocumentMetadata.js';
 import { createS3Client, createSqsClient } from '../../infrastructure/aws/clients.js';
@@ -41,6 +42,7 @@ async function main(): Promise<void> {
     completeUpload: new CompleteUploadUseCase(repository, storage, queue),
     searchDocuments: new SearchDocumentsUseCase(searchIndex),
     updateDocumentMetadata: new UpdateDocumentMetadataUseCase(repository),
+    retryDocument: new RetryDocumentUseCase(repository, queue),
   });
 
   await app.listen({ port: config.port, host: '0.0.0.0' });

@@ -140,4 +140,25 @@ describe('Document', () => {
 
     expect(doc.toProps().failureReason).toBeNull();
   });
+
+  it('allows a manual retry from FAILED, resetting attempts and clearing the failure reason', () => {
+    const doc = createDocument();
+    doc.startUpload('s3://bucket/key.pdf', 'application/pdf', 1024);
+    doc.enqueue();
+    doc.beginProcessing();
+    doc.fail('permanent error');
+    expect(doc.processingAttempts).toBe(1);
+
+    doc.retryFromFailure();
+
+    expect(doc.status).toBe('QUEUED');
+    expect(doc.processingAttempts).toBe(0);
+    expect(doc.toProps().failureReason).toBeNull();
+  });
+
+  it('rejects a manual retry from a non-FAILED state', () => {
+    const doc = createDocument();
+
+    expect(() => doc.retryFromFailure()).toThrow(InvalidDocumentTransitionError);
+  });
 });

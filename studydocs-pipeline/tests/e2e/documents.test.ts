@@ -5,6 +5,8 @@ import { CompleteUploadUseCase } from '../../src/application/documents/CompleteU
 import { CreateDocumentUseCase } from '../../src/application/documents/CreateDocument.js';
 import { GetDocumentUseCase } from '../../src/application/documents/GetDocument.js';
 import { ListDocumentsUseCase } from '../../src/application/documents/ListDocuments.js';
+import { ProcessDocumentUseCase } from '../../src/application/documents/ProcessDocument.js';
+import { RetryDocumentUseCase } from '../../src/application/documents/RetryDocument.js';
 import { SearchDocumentsUseCase } from '../../src/application/documents/SearchDocuments.js';
 import { UpdateDocumentMetadataUseCase } from '../../src/application/documents/UpdateDocumentMetadata.js';
 import { buildApp } from '../../src/interfaces/http/app.js';
@@ -16,6 +18,7 @@ import {
 import { ElasticsearchSearchIndex } from '../../src/infrastructure/elasticsearch/ElasticsearchSearchIndex.js';
 import { connectMongo, ensureDocumentIndexes } from '../../src/infrastructure/mongodb/connection.js';
 import { MongoDocumentRepository } from '../../src/infrastructure/mongodb/MongoDocumentRepository.js';
+import { PdfDocumentProcessor } from '../../src/infrastructure/pdf/PdfDocumentProcessor.js';
 import { S3ObjectStorage } from '../../src/infrastructure/s3/S3ObjectStorage.js';
 import { SqsDocumentQueue } from '../../src/infrastructure/sqs/SqsDocumentQueue.js';
 
@@ -33,6 +36,7 @@ process.env.AWS_SECRET_ACCESS_KEY ??= 'test';
 let client: MongoClient;
 let db: Db;
 let app: FastifyInstance;
+let processDocument: ProcessDocumentUseCase;
 
 beforeAll(async () => {
   ({ client, db } = await connectMongo(MONGO_URI));
@@ -45,6 +49,7 @@ beforeAll(async () => {
   const esClient = createElasticsearchClient(ELASTICSEARCH_NODE);
   await ensureDocumentsIndex(esClient);
   const searchIndex = new ElasticsearchSearchIndex(esClient);
+  processDocument = new ProcessDocumentUseCase(repository, new PdfDocumentProcessor(storage, searchIndex));
 
   app = await buildApp({
     createDocument: new CreateDocumentUseCase(repository),
@@ -53,6 +58,7 @@ beforeAll(async () => {
     completeUpload: new CompleteUploadUseCase(repository, storage, queue),
     searchDocuments: new SearchDocumentsUseCase(searchIndex),
     updateDocumentMetadata: new UpdateDocumentMetadataUseCase(repository),
+    retryDocument: new RetryDocumentUseCase(repository, queue),
   });
   await app.ready();
 });
@@ -241,6 +247,45 @@ describe('Documents HTTP API', () => {
       payload: body,
     });
 
+    expect(response.statusCode).toBe(404);
+  });
+
+  it('retries a FAILED document and moves it back to QUEUED', async () => {
+    const created = await app.inject({ method: 'POST', url: '/documents', payload: validPayload() });
+    const { id } = created.json();
+    const { body, contentType } = buildMultipartUpload('not actually a pdf');
+    await app.inject({
+      method: 'POST',
+      url: `/documents/${id}/complete-upload`,
+      headers: { 'content-type': contentType },
+      payload: body,
+    });
+
+    // Drive it to FAILED directly (bypassing the SQS hop, like search.test.ts does).
+    await processDocument.execute(id);
+    const failed = await app.inject({ method: 'GET', url: `/documents/${id}` });
+    expect(failed.json().status).toBe('FAILED');
+
+    const response = await app.inject({ method: 'POST', url: `/documents/${id}/retry` });
+
+    expect(response.statusCode).toBe(202);
+    const retried = response.json();
+    expect(retried.status).toBe('QUEUED');
+    expect(retried.processingAttempts).toBe(0);
+    expect(retried.failureReason).toBeNull();
+  });
+
+  it('returns 409 when retrying a document that is not FAILED', async () => {
+    const created = await app.inject({ method: 'POST', url: '/documents', payload: validPayload() });
+    const { id } = created.json();
+
+    const response = await app.inject({ method: 'POST', url: `/documents/${id}/retry` });
+
+    expect(response.statusCode).toBe(409);
+  });
+
+  it('returns 404 when retrying a document that does not exist', async () => {
+    const response = await app.inject({ method: 'POST', url: '/documents/does-not-exist/retry' });
     expect(response.statusCode).toBe(404);
   });
 });

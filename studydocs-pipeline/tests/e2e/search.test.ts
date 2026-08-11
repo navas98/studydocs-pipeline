@@ -6,6 +6,7 @@ import { CompleteUploadUseCase } from '../../src/application/documents/CompleteU
 import { CreateDocumentUseCase } from '../../src/application/documents/CreateDocument.js';
 import { GetDocumentUseCase } from '../../src/application/documents/GetDocument.js';
 import { ListDocumentsUseCase } from '../../src/application/documents/ListDocuments.js';
+import { RetryDocumentUseCase } from '../../src/application/documents/RetryDocument.js';
 import { SearchDocumentsUseCase } from '../../src/application/documents/SearchDocuments.js';
 import { UpdateDocumentMetadataUseCase } from '../../src/application/documents/UpdateDocumentMetadata.js';
 import { ProcessDocumentUseCase } from '../../src/application/documents/ProcessDocument.js';
@@ -64,6 +65,7 @@ beforeAll(async () => {
     completeUpload: new CompleteUploadUseCase(repository, storage, queue),
     searchDocuments: new SearchDocumentsUseCase(searchIndex),
     updateDocumentMetadata: new UpdateDocumentMetadataUseCase(repository),
+    retryDocument: new RetryDocumentUseCase(repository, queue),
   });
   await app.ready();
 });

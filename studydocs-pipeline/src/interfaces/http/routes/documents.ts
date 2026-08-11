@@ -4,6 +4,7 @@ import type { CreateDocumentUseCase } from '../../../application/documents/Creat
 import { ConcurrencyConflictError, DocumentNotFoundError } from '../../../application/documents/errors.js';
 import type { GetDocumentUseCase } from '../../../application/documents/GetDocument.js';
 import type { ListDocumentsUseCase } from '../../../application/documents/ListDocuments.js';
+import type { RetryDocumentUseCase } from '../../../application/documents/RetryDocument.js';
 import type { UpdateDocumentMetadataUseCase } from '../../../application/documents/UpdateDocumentMetadata.js';
 import { InvalidDocumentTransitionError } from '../../../domain/document/errors.js';
 import { toDocumentResponse } from '../documentMapper.js';
@@ -14,6 +15,7 @@ export interface DocumentRoutesDeps {
   listDocuments: ListDocumentsUseCase;
   completeUpload: CompleteUploadUseCase;
   updateDocumentMetadata: UpdateDocumentMetadataUseCase;
+  retryDocument: RetryDocumentUseCase;
 }
 
 const ALLOWED_MIME_TYPES = new Set(['application/pdf']);
@@ -223,6 +225,43 @@ export function registerDocumentRoutes(app: FastifyInstance, deps: DocumentRoute
         if (error instanceof InvalidDocumentTransitionError) {
           reply.code(409);
           return { error: error.message };
+        }
+        throw error;
+      }
+    },
+  );
+
+  app.post(
+    '/documents/:id/retry',
+    {
+      schema: {
+        params: {
+          type: 'object',
+          required: ['id'],
+          properties: { id: { type: 'string' } },
+        },
+        response: {
+          202: documentResponseSchema,
+          404: { type: 'object', properties: { error: { type: 'string' } } },
+          409: { type: 'object', properties: { error: { type: 'string' } } },
+        },
+      },
+    },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+
+      try {
+        const document = await deps.retryDocument.execute(id);
+        reply.code(202);
+        return toDocumentResponse(document);
+      } catch (error) {
+        if (error instanceof DocumentNotFoundError) {
+          reply.code(404);
+          return { error: error.message };
+        }
+        if (error instanceof InvalidDocumentTransitionError) {
+          reply.code(409);
+          return { error: `Document is not eligible for retry: ${error.message}` };
         }
         throw error;
       }
