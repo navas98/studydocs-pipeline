@@ -9,6 +9,7 @@ import type { ListDocumentsUseCase } from '../../application/documents/ListDocum
 import type { RetryDocumentUseCase } from '../../application/documents/RetryDocument.js';
 import type { SearchDocumentsUseCase } from '../../application/documents/SearchDocuments.js';
 import type { UpdateDocumentMetadataUseCase } from '../../application/documents/UpdateDocumentMetadata.js';
+import { registerErrorHandler } from './errorHandler.js';
 import { registerDocumentRoutes } from './routes/documents.js';
 import { registerSearchRoutes } from './routes/search.js';
 
@@ -39,6 +40,8 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   app.addHook('onSend', async (request, reply) => {
     reply.header('x-correlation-id', request.id);
   });
+
+  registerErrorHandler(app);
 
   await app.register(swagger, {
     openapi: {

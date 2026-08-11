@@ -1,12 +1,10 @@
 import type { FastifyInstance } from 'fastify';
 import type { CompleteUploadUseCase } from '../../../application/documents/CompleteUpload.js';
 import type { CreateDocumentUseCase } from '../../../application/documents/CreateDocument.js';
-import { ConcurrencyConflictError, DocumentNotFoundError } from '../../../application/documents/errors.js';
 import type { GetDocumentUseCase } from '../../../application/documents/GetDocument.js';
 import type { ListDocumentsUseCase } from '../../../application/documents/ListDocuments.js';
 import type { RetryDocumentUseCase } from '../../../application/documents/RetryDocument.js';
 import type { UpdateDocumentMetadataUseCase } from '../../../application/documents/UpdateDocumentMetadata.js';
-import { InvalidDocumentTransitionError } from '../../../domain/document/errors.js';
 import { toDocumentResponse } from '../documentMapper.js';
 
 export interface DocumentRoutesDeps {
@@ -38,6 +36,8 @@ const documentResponseSchema = {
     failureReason: { type: ['string', 'null'] },
   },
 } as const;
+
+const errorResponseSchema = { type: 'object', properties: { error: { type: 'string' } } } as const;
 
 export function registerDocumentRoutes(app: FastifyInstance, deps: DocumentRoutesDeps): void {
   app.post(
@@ -83,7 +83,7 @@ export function registerDocumentRoutes(app: FastifyInstance, deps: DocumentRoute
         },
         response: {
           200: documentResponseSchema,
-          404: { type: 'object', properties: { error: { type: 'string' } } },
+          404: errorResponseSchema,
         },
       },
     },
@@ -120,12 +120,12 @@ export function registerDocumentRoutes(app: FastifyInstance, deps: DocumentRoute
         },
         response: {
           200: documentResponseSchema,
-          404: { type: 'object', properties: { error: { type: 'string' } } },
-          409: { type: 'object', properties: { error: { type: 'string' } } },
+          404: errorResponseSchema,
+          409: errorResponseSchema,
         },
       },
     },
-    async (request, reply) => {
+    async (request) => {
       const { id } = request.params as { id: string };
       const { version, ...fields } = request.body as {
         version: number;
@@ -135,24 +135,12 @@ export function registerDocumentRoutes(app: FastifyInstance, deps: DocumentRoute
         tags?: string[];
       };
 
-      try {
-        const document = await deps.updateDocumentMetadata.execute({
-          documentId: id,
-          expectedVersion: version,
-          fields,
-        });
-        return toDocumentResponse(document);
-      } catch (error) {
-        if (error instanceof DocumentNotFoundError) {
-          reply.code(404);
-          return { error: error.message };
-        }
-        if (error instanceof ConcurrencyConflictError) {
-          reply.code(409);
-          return { error: error.message };
-        }
-        throw error;
-      }
+      const document = await deps.updateDocumentMetadata.execute({
+        documentId: id,
+        expectedVersion: version,
+        fields,
+      });
+      return toDocumentResponse(document);
     },
   );
 
@@ -192,9 +180,9 @@ export function registerDocumentRoutes(app: FastifyInstance, deps: DocumentRoute
         },
         response: {
           202: documentResponseSchema,
-          404: { type: 'object', properties: { error: { type: 'string' } } },
-          409: { type: 'object', properties: { error: { type: 'string' } } },
-          415: { type: 'object', properties: { error: { type: 'string' } } },
+          404: errorResponseSchema,
+          409: errorResponseSchema,
+          415: errorResponseSchema,
         },
       },
     },
@@ -209,26 +197,14 @@ export function registerDocumentRoutes(app: FastifyInstance, deps: DocumentRoute
 
       const fileBuffer = await uploadedFile.toBuffer();
 
-      try {
-        const document = await deps.completeUpload.execute({
-          documentId: id,
-          file: fileBuffer,
-          mimeType: uploadedFile.mimetype,
-          correlationId: request.id,
-        });
-        reply.code(202);
-        return toDocumentResponse(document);
-      } catch (error) {
-        if (error instanceof DocumentNotFoundError) {
-          reply.code(404);
-          return { error: error.message };
-        }
-        if (error instanceof InvalidDocumentTransitionError) {
-          reply.code(409);
-          return { error: error.message };
-        }
-        throw error;
-      }
+      const document = await deps.completeUpload.execute({
+        documentId: id,
+        file: fileBuffer,
+        mimeType: uploadedFile.mimetype,
+        correlationId: request.id,
+      });
+      reply.code(202);
+      return toDocumentResponse(document);
     },
   );
 
@@ -243,29 +219,16 @@ export function registerDocumentRoutes(app: FastifyInstance, deps: DocumentRoute
         },
         response: {
           202: documentResponseSchema,
-          404: { type: 'object', properties: { error: { type: 'string' } } },
-          409: { type: 'object', properties: { error: { type: 'string' } } },
+          404: errorResponseSchema,
+          409: errorResponseSchema,
         },
       },
     },
     async (request, reply) => {
       const { id } = request.params as { id: string };
-
-      try {
-        const document = await deps.retryDocument.execute(id, request.id);
-        reply.code(202);
-        return toDocumentResponse(document);
-      } catch (error) {
-        if (error instanceof DocumentNotFoundError) {
-          reply.code(404);
-          return { error: error.message };
-        }
-        if (error instanceof InvalidDocumentTransitionError) {
-          reply.code(409);
-          return { error: `Document is not eligible for retry: ${error.message}` };
-        }
-        throw error;
-      }
+      const document = await deps.retryDocument.execute(id, request.id);
+      reply.code(202);
+      return toDocumentResponse(document);
     },
   );
 }
