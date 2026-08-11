@@ -1,2 +1,8 @@
 .claude/
 documento_diseno_proyecto_backend_wuolah_es.docx
+
+node_modules/
+dist/
+coverage/
+.env
+*.log

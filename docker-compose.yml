@@ -1,3 +1,5 @@
+name: studydocs-pipeline
+
 services:
   mongo:
     image: mongo:7
