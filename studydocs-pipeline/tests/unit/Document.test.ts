@@ -90,6 +90,19 @@ describe('Document', () => {
     expect(doc.toProps().failureReason).toHaveLength(203); // 200 chars + '...'
   });
 
+  it('updates metadata fields and bumps the version without changing status', () => {
+    const doc = createDocument();
+
+    doc.updateMetadata({ title: 'Nuevo título', tags: ['nuevo-tag'] });
+
+    expect(doc.status).toBe('CREATED');
+    expect(doc.version).toBe(1);
+    const props = doc.toProps();
+    expect(props.title).toBe('Nuevo título');
+    expect(props.tags).toEqual(['nuevo-tag']);
+    expect(props.subject).toBe('Matemáticas'); // untouched fields are left as-is
+  });
+
   it('does not let a caller mutate internal state via toProps()', () => {
     const doc = createDocument();
 

@@ -4,6 +4,7 @@ import { CreateDocumentUseCase } from '../../application/documents/CreateDocumen
 import { GetDocumentUseCase } from '../../application/documents/GetDocument.js';
 import { ListDocumentsUseCase } from '../../application/documents/ListDocuments.js';
 import { SearchDocumentsUseCase } from '../../application/documents/SearchDocuments.js';
+import { UpdateDocumentMetadataUseCase } from '../../application/documents/UpdateDocumentMetadata.js';
 import { createS3Client, createSqsClient } from '../../infrastructure/aws/clients.js';
 import {
   createElasticsearchClient,
@@ -39,6 +40,7 @@ async function main(): Promise<void> {
     listDocuments: new ListDocumentsUseCase(repository),
     completeUpload: new CompleteUploadUseCase(repository, storage, queue),
     searchDocuments: new SearchDocumentsUseCase(searchIndex),
+    updateDocumentMetadata: new UpdateDocumentMetadataUseCase(repository),
   });
 
   await app.listen({ port: config.port, host: '0.0.0.0' });

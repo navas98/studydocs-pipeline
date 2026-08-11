@@ -59,8 +59,18 @@ export class Document {
     });
   }
 
+  // Clones mutable fields for the same reason create()/toProps() do: a
+  // repository adapter that hands back a cached/pooled props object (as
+  // opposed to one freshly deserialized, like MongoDB's driver produces)
+  // shouldn't end up aliased with this aggregate's internal state.
   static fromProps(props: DocumentProps): Document {
-    return new Document(props);
+    return new Document({
+      ...props,
+      tags: [...props.tags],
+      createdAt: new Date(props.createdAt),
+      updatedAt: new Date(props.updatedAt),
+      indexedAt: props.indexedAt ? new Date(props.indexedAt) : null,
+    });
   }
 
   toProps(): DocumentProps {
@@ -119,6 +129,27 @@ export class Document {
   fail(reason: string): void {
     this.transitionTo('FAILED');
     this.props.failureReason = sanitizeFailureReason(reason);
+  }
+
+  // Metadata edits don't change `status`, but still bump `version` — the
+  // field section 13 of the design doc uses for optimistic concurrency, so
+  // two clients editing the same document can be told apart regardless of
+  // whether the edit is a state transition or not.
+  updateMetadata(fields: Partial<Pick<DocumentProps, 'title' | 'subject' | 'university' | 'tags'>>): void {
+    if (fields.title !== undefined) {
+      this.props.title = fields.title;
+    }
+    if (fields.subject !== undefined) {
+      this.props.subject = fields.subject;
+    }
+    if (fields.university !== undefined) {
+      this.props.university = fields.university;
+    }
+    if (fields.tags !== undefined) {
+      this.props.tags = [...fields.tags];
+    }
+    this.props.version += 1;
+    this.props.updatedAt = new Date();
   }
 
   private transitionTo(next: DocumentStatus): void {

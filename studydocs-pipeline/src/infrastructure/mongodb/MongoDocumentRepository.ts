@@ -45,4 +45,13 @@ export class MongoDocumentRepository implements DocumentRepository {
       .toArray();
     return records.map(toDomain);
   }
+
+  async updateWithVersionCheck(document: Document, expectedVersion: number): Promise<boolean> {
+    const { _id, ...rest } = toDbRecord(document.toProps());
+    const result = await this.collection.updateOne(
+      { _id, version: expectedVersion },
+      { $set: rest },
+    );
+    return result.matchedCount === 1;
+  }
 }

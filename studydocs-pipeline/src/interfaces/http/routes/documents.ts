@@ -1,9 +1,10 @@
 import type { FastifyInstance } from 'fastify';
 import type { CompleteUploadUseCase } from '../../../application/documents/CompleteUpload.js';
 import type { CreateDocumentUseCase } from '../../../application/documents/CreateDocument.js';
-import { DocumentNotFoundError } from '../../../application/documents/errors.js';
+import { ConcurrencyConflictError, DocumentNotFoundError } from '../../../application/documents/errors.js';
 import type { GetDocumentUseCase } from '../../../application/documents/GetDocument.js';
 import type { ListDocumentsUseCase } from '../../../application/documents/ListDocuments.js';
+import type { UpdateDocumentMetadataUseCase } from '../../../application/documents/UpdateDocumentMetadata.js';
 import { InvalidDocumentTransitionError } from '../../../domain/document/errors.js';
 import { toDocumentResponse } from '../documentMapper.js';
 
@@ -12,6 +13,7 @@ export interface DocumentRoutesDeps {
   getDocument: GetDocumentUseCase;
   listDocuments: ListDocumentsUseCase;
   completeUpload: CompleteUploadUseCase;
+  updateDocumentMetadata: UpdateDocumentMetadataUseCase;
 }
 
 const ALLOWED_MIME_TYPES = new Set(['application/pdf']);
@@ -91,6 +93,64 @@ export function registerDocumentRoutes(app: FastifyInstance, deps: DocumentRoute
         return { error: 'Document not found' };
       }
       return toDocumentResponse(document);
+    },
+  );
+
+  app.patch(
+    '/documents/:id',
+    {
+      schema: {
+        params: {
+          type: 'object',
+          required: ['id'],
+          properties: { id: { type: 'string' } },
+        },
+        body: {
+          type: 'object',
+          required: ['version'],
+          properties: {
+            version: { type: 'integer', minimum: 0 },
+            title: { type: 'string', minLength: 1 },
+            subject: { type: 'string', minLength: 1 },
+            university: { type: 'string', minLength: 1 },
+            tags: { type: 'array', items: { type: 'string' } },
+          },
+        },
+        response: {
+          200: documentResponseSchema,
+          404: { type: 'object', properties: { error: { type: 'string' } } },
+          409: { type: 'object', properties: { error: { type: 'string' } } },
+        },
+      },
+    },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const { version, ...fields } = request.body as {
+        version: number;
+        title?: string;
+        subject?: string;
+        university?: string;
+        tags?: string[];
+      };
+
+      try {
+        const document = await deps.updateDocumentMetadata.execute({
+          documentId: id,
+          expectedVersion: version,
+          fields,
+        });
+        return toDocumentResponse(document);
+      } catch (error) {
+        if (error instanceof DocumentNotFoundError) {
+          reply.code(404);
+          return { error: error.message };
+        }
+        if (error instanceof ConcurrencyConflictError) {
+          reply.code(409);
+          return { error: error.message };
+        }
+        throw error;
+      }
     },
   );
 

@@ -6,6 +6,7 @@ import { CreateDocumentUseCase } from '../../src/application/documents/CreateDoc
 import { GetDocumentUseCase } from '../../src/application/documents/GetDocument.js';
 import { ListDocumentsUseCase } from '../../src/application/documents/ListDocuments.js';
 import { SearchDocumentsUseCase } from '../../src/application/documents/SearchDocuments.js';
+import { UpdateDocumentMetadataUseCase } from '../../src/application/documents/UpdateDocumentMetadata.js';
 import { buildApp } from '../../src/interfaces/http/app.js';
 import { createS3Client, createSqsClient } from '../../src/infrastructure/aws/clients.js';
 import {
@@ -51,6 +52,7 @@ beforeAll(async () => {
     listDocuments: new ListDocumentsUseCase(repository),
     completeUpload: new CompleteUploadUseCase(repository, storage, queue),
     searchDocuments: new SearchDocumentsUseCase(searchIndex),
+    updateDocumentMetadata: new UpdateDocumentMetadataUseCase(repository),
   });
   await app.ready();
 });
@@ -122,6 +124,51 @@ describe('Documents HTTP API', () => {
 
   it('returns 404 for an id that does not exist', async () => {
     const response = await app.inject({ method: 'GET', url: '/documents/does-not-exist' });
+    expect(response.statusCode).toBe(404);
+  });
+
+  it('updates metadata when the version matches', async () => {
+    const created = await app.inject({ method: 'POST', url: '/documents', payload: validPayload() });
+    const { id } = created.json();
+
+    const response = await app.inject({
+      method: 'PATCH',
+      url: `/documents/${id}`,
+      payload: { version: 0, title: 'Título actualizado' },
+    });
+
+    expect(response.statusCode).toBe(200);
+    const body = response.json();
+    expect(body.title).toBe('Título actualizado');
+    expect(body.version).toBe(1);
+  });
+
+  it('returns 409 when the version is stale (optimistic concurrency conflict)', async () => {
+    const created = await app.inject({ method: 'POST', url: '/documents', payload: validPayload() });
+    const { id } = created.json();
+
+    await app.inject({
+      method: 'PATCH',
+      url: `/documents/${id}`,
+      payload: { version: 0, title: 'Cambio de cliente A' },
+    });
+
+    const response = await app.inject({
+      method: 'PATCH',
+      url: `/documents/${id}`,
+      payload: { version: 0, title: 'Cambio de cliente B' },
+    });
+
+    expect(response.statusCode).toBe(409);
+  });
+
+  it('returns 404 when updating a document that does not exist', async () => {
+    const response = await app.inject({
+      method: 'PATCH',
+      url: '/documents/does-not-exist',
+      payload: { version: 0, title: 'x' },
+    });
+
     expect(response.statusCode).toBe(404);
   });
 

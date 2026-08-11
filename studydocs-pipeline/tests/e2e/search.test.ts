@@ -7,6 +7,7 @@ import { CreateDocumentUseCase } from '../../src/application/documents/CreateDoc
 import { GetDocumentUseCase } from '../../src/application/documents/GetDocument.js';
 import { ListDocumentsUseCase } from '../../src/application/documents/ListDocuments.js';
 import { SearchDocumentsUseCase } from '../../src/application/documents/SearchDocuments.js';
+import { UpdateDocumentMetadataUseCase } from '../../src/application/documents/UpdateDocumentMetadata.js';
 import { ProcessDocumentUseCase } from '../../src/application/documents/ProcessDocument.js';
 import { buildApp } from '../../src/interfaces/http/app.js';
 import { DeleteMessageCommand, ReceiveMessageCommand, SQSClient } from '@aws-sdk/client-sqs';
@@ -62,6 +63,7 @@ beforeAll(async () => {
     listDocuments: new ListDocumentsUseCase(repository),
     completeUpload: new CompleteUploadUseCase(repository, storage, queue),
     searchDocuments: new SearchDocumentsUseCase(searchIndex),
+    updateDocumentMetadata: new UpdateDocumentMetadataUseCase(repository),
   });
   await app.ready();
 });
