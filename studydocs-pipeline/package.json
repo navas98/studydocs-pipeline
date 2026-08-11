@@ -13,7 +13,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint .",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "perf:mongo": "tsx scripts/analyzeMongoPerformance.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.658.0",
