@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import type { CompleteUploadUseCase } from '../../../application/documents/CompleteUpload.js';
 import type { CreateDocumentUseCase } from '../../../application/documents/CreateDocument.js';
+import type { DownloadDocumentFileUseCase } from '../../../application/documents/DownloadDocumentFile.js';
 import type { GetDocumentUseCase } from '../../../application/documents/GetDocument.js';
 import type { ListDocumentsUseCase } from '../../../application/documents/ListDocuments.js';
 import type { RetryDocumentUseCase } from '../../../application/documents/RetryDocument.js';
@@ -14,6 +15,7 @@ export interface DocumentRoutesDeps {
   completeUpload: CompleteUploadUseCase;
   updateDocumentMetadata: UpdateDocumentMetadataUseCase;
   retryDocument: RetryDocumentUseCase;
+  downloadDocumentFile: DownloadDocumentFileUseCase;
 }
 
 const ALLOWED_MIME_TYPES = new Set(['application/pdf']);
@@ -205,6 +207,32 @@ export function registerDocumentRoutes(app: FastifyInstance, deps: DocumentRoute
       });
       reply.code(202);
       return toDocumentResponse(document);
+    },
+  );
+
+  app.get(
+    '/documents/:id/file',
+    {
+      schema: {
+        params: {
+          type: 'object',
+          required: ['id'],
+          properties: { id: { type: 'string' } },
+        },
+        response: {
+          404: errorResponseSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const file = await deps.downloadDocumentFile.execute(id);
+      reply
+        .header('Content-Type', file.mimeType)
+        // inline (not attachment): clicking the link opens the PDF in a
+        // new tab instead of forcing a download.
+        .header('Content-Disposition', `inline; filename="${file.filename}"`);
+      return file.buffer;
     },
   );
 

@@ -15,6 +15,7 @@ function buildDeps(checkHealth: AppDeps['checkHealth']): AppDeps {
     searchDocuments: unusedUseCase,
     updateDocumentMetadata: unusedUseCase,
     retryDocument: unusedUseCase,
+    downloadDocumentFile: unusedUseCase,
     checkHealth,
   };
 }

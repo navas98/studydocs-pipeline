@@ -4,6 +4,7 @@ import type { Db, MongoClient } from 'mongodb';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { CompleteUploadUseCase } from '../../src/application/documents/CompleteUpload.js';
 import { CreateDocumentUseCase } from '../../src/application/documents/CreateDocument.js';
+import { DownloadDocumentFileUseCase } from '../../src/application/documents/DownloadDocumentFile.js';
 import { GetDocumentUseCase } from '../../src/application/documents/GetDocument.js';
 import { ListDocumentsUseCase } from '../../src/application/documents/ListDocuments.js';
 import { RetryDocumentUseCase } from '../../src/application/documents/RetryDocument.js';
@@ -73,6 +74,7 @@ beforeAll(async () => {
     searchDocuments: new SearchDocumentsUseCase(searchIndex),
     updateDocumentMetadata: new UpdateDocumentMetadataUseCase(repository),
     retryDocument: new RetryDocumentUseCase(repository, queue),
+    downloadDocumentFile: new DownloadDocumentFileUseCase(repository, storage),
     checkHealth: createCheckHealth(db, esClient),
   });
   await app.ready();

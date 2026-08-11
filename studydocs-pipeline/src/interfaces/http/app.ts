@@ -1,9 +1,13 @@
 import { randomUUID } from 'node:crypto';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import Fastify, { type FastifyInstance } from 'fastify';
 import multipart from '@fastify/multipart';
+import staticPlugin from '@fastify/static';
 import swagger from '@fastify/swagger';
 import type { CompleteUploadUseCase } from '../../application/documents/CompleteUpload.js';
 import type { CreateDocumentUseCase } from '../../application/documents/CreateDocument.js';
+import type { DownloadDocumentFileUseCase } from '../../application/documents/DownloadDocumentFile.js';
 import type { GetDocumentUseCase } from '../../application/documents/GetDocument.js';
 import type { ListDocumentsUseCase } from '../../application/documents/ListDocuments.js';
 import type { RetryDocumentUseCase } from '../../application/documents/RetryDocument.js';
@@ -27,10 +31,12 @@ export interface AppDeps {
   searchDocuments: SearchDocumentsUseCase;
   updateDocumentMetadata: UpdateDocumentMetadataUseCase;
   retryDocument: RetryDocumentUseCase;
+  downloadDocumentFile: DownloadDocumentFileUseCase;
   checkHealth: CheckHealth;
 }
 
 const MAX_UPLOAD_BYTES = 20 * 1024 * 1024; // 20 MB, per section 14 (max size restriction)
+const PUBLIC_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../public');
 
 export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   const app = Fastify({
@@ -59,6 +65,11 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   await app.register(multipart, {
     limits: { fileSize: MAX_UPLOAD_BYTES },
   });
+
+  // Minimal demo frontend (section 18, Day 5) — a static page served
+  // straight from the API so the whole demo runs with one process and no
+  // separate frontend server/CORS setup.
+  await app.register(staticPlugin, { root: PUBLIC_DIR });
 
   app.get('/openapi.json', async () => app.swagger());
   app.get('/health', async (_request, reply) => {

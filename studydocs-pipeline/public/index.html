@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>StudyDocs Pipeline — Demo</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header>
+    <h1>StudyDocs Pipeline</h1>
+    <p class="subtitle">Demo técnica de portfolio — no es el producto real de Wuolah.</p>
+  </header>
+
+  <main>
+    <section class="card">
+      <h2>1. Subir un documento</h2>
+      <form id="upload-form">
+        <label>
+          Owner ID
+          <input type="text" id="ownerId" value="demo-owner" required />
+        </label>
+        <label>
+          Título
+          <input type="text" id="title" placeholder="Apuntes de Álgebra" required />
+        </label>
+        <label>
+          Asignatura
+          <input type="text" id="subject" placeholder="Matemáticas" required />
+        </label>
+        <label>
+          Universidad
+          <input type="text" id="university" placeholder="Universidad de Sevilla" required />
+        </label>
+        <label>
+          Etiquetas (separadas por coma)
+          <input type="text" id="tags" placeholder="algebra, examen" />
+        </label>
+        <label>
+          Archivo PDF
+          <input type="file" id="file" accept="application/pdf" required />
+        </label>
+        <button type="submit">Crear y subir</button>
+      </form>
+      <p id="upload-status" class="status-line"></p>
+    </section>
+
+    <section class="card">
+      <h2>2. Mis documentos <span id="polling-indicator" class="polling-indicator" hidden>●</span></h2>
+      <button id="refresh-documents" type="button">Actualizar</button>
+      <ul id="documents-list" class="document-list"></ul>
+    </section>
+
+    <section class="card">
+      <h2>3. Buscar</h2>
+      <form id="search-form">
+        <label>
+          Texto
+          <input type="text" id="search-text" placeholder="algebra" />
+        </label>
+        <label>
+          Asignatura
+          <input type="text" id="search-subject" />
+        </label>
+        <label>
+          Universidad
+          <input type="text" id="search-university" />
+        </label>
+        <button type="submit">Buscar</button>
+      </form>
+      <ul id="search-results" class="document-list"></ul>
+    </section>
+  </main>
+
+  <script src="/app.js"></script>
+</body>
+</html>

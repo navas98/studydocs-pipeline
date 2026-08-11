@@ -6,7 +6,9 @@ export default tseslint.config(
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
-    ignores: ['dist/**', 'node_modules/**'],
+    // public/ is plain browser JS served as-is (no build step, no Node
+    // globals), so it doesn't belong to this Node/TypeScript lint config.
+    ignores: ['dist/**', 'node_modules/**', 'public/**'],
   },
   {
     rules: {

@@ -3,6 +3,7 @@ import type { Db, MongoClient } from 'mongodb';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { CompleteUploadUseCase } from '../../src/application/documents/CompleteUpload.js';
 import { CreateDocumentUseCase } from '../../src/application/documents/CreateDocument.js';
+import { DownloadDocumentFileUseCase } from '../../src/application/documents/DownloadDocumentFile.js';
 import { GetDocumentUseCase } from '../../src/application/documents/GetDocument.js';
 import { ListDocumentsUseCase } from '../../src/application/documents/ListDocuments.js';
 import { ProcessDocumentUseCase } from '../../src/application/documents/ProcessDocument.js';
@@ -69,6 +70,7 @@ beforeAll(async () => {
     searchDocuments: new SearchDocumentsUseCase(searchIndex),
     updateDocumentMetadata: new UpdateDocumentMetadataUseCase(repository),
     retryDocument: new RetryDocumentUseCase(repository, queue),
+    downloadDocumentFile: new DownloadDocumentFileUseCase(repository, storage),
     checkHealth: createCheckHealth(db, esClient),
   });
   await app.ready();
@@ -346,5 +348,38 @@ describe('Documents HTTP API', () => {
   it('generates a correlation id when the caller does not supply one', async () => {
     const response = await app.inject({ method: 'GET', url: '/health' });
     expect(response.headers['x-correlation-id']).toBeDefined();
+  });
+
+  it('serves the uploaded PDF for viewing', async () => {
+    const created = await app.inject({ method: 'POST', url: '/documents', payload: validPayload() });
+    const { id } = created.json();
+    const { body, contentType } = buildMultipartUpload('%PDF-1.4 real content');
+    await app.inject({
+      method: 'POST',
+      url: `/documents/${id}/complete-upload`,
+      headers: { 'content-type': contentType },
+      payload: body,
+    });
+
+    const response = await app.inject({ method: 'GET', url: `/documents/${id}/file` });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.headers['content-type']).toBe('application/pdf');
+    expect(response.headers['content-disposition']).toContain('inline');
+    expect(response.body).toContain('%PDF-1.4 real content');
+  });
+
+  it('returns 404 when viewing the file of a document that does not exist', async () => {
+    const response = await app.inject({ method: 'GET', url: '/documents/does-not-exist/file' });
+    expect(response.statusCode).toBe(404);
+  });
+
+  it('returns 404 when viewing the file of a document with no upload yet', async () => {
+    const created = await app.inject({ method: 'POST', url: '/documents', payload: validPayload() });
+    const { id } = created.json();
+
+    const response = await app.inject({ method: 'GET', url: `/documents/${id}/file` });
+
+    expect(response.statusCode).toBe(404);
   });
 });
