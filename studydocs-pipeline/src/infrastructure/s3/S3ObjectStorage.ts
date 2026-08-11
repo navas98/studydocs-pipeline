@@ -1,4 +1,4 @@
-import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import type { ObjectStorage } from '../../application/documents/ObjectStorage.js';
 
 export class S3ObjectStorage implements ObjectStorage {
@@ -16,5 +16,16 @@ export class S3ObjectStorage implements ObjectStorage {
         ContentType: contentType,
       }),
     );
+  }
+
+  async download(key: string): Promise<Buffer> {
+    const result = await this.client.send(
+      new GetObjectCommand({ Bucket: this.bucket, Key: key }),
+    );
+    const bytes = await result.Body?.transformToByteArray();
+    if (!bytes) {
+      throw new Error(`Empty S3 object body for key: ${key}`);
+    }
+    return Buffer.from(bytes);
   }
 }
