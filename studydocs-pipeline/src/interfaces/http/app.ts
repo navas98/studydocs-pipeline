@@ -5,13 +5,16 @@ import type { CompleteUploadUseCase } from '../../application/documents/Complete
 import type { CreateDocumentUseCase } from '../../application/documents/CreateDocument.js';
 import type { GetDocumentUseCase } from '../../application/documents/GetDocument.js';
 import type { ListDocumentsUseCase } from '../../application/documents/ListDocuments.js';
+import type { SearchDocumentsUseCase } from '../../application/documents/SearchDocuments.js';
 import { registerDocumentRoutes } from './routes/documents.js';
+import { registerSearchRoutes } from './routes/search.js';
 
 export interface AppDeps {
   createDocument: CreateDocumentUseCase;
   getDocument: GetDocumentUseCase;
   listDocuments: ListDocumentsUseCase;
   completeUpload: CompleteUploadUseCase;
+  searchDocuments: SearchDocumentsUseCase;
 }
 
 const MAX_UPLOAD_BYTES = 20 * 1024 * 1024; // 20 MB, per section 14 (max size restriction)
@@ -33,6 +36,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   app.get('/health', async () => ({ status: 'ok' }));
 
   registerDocumentRoutes(app, deps);
+  registerSearchRoutes(app, deps);
 
   return app;
 }

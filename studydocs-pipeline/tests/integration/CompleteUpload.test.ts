@@ -1,7 +1,7 @@
 import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
-import { ReceiveMessageCommand, SQSClient } from '@aws-sdk/client-sqs';
+import { DeleteMessageCommand, ReceiveMessageCommand, SQSClient } from '@aws-sdk/client-sqs';
 import type { Db, MongoClient } from 'mongodb';
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { CompleteUploadUseCase } from '../../src/application/documents/CompleteUpload.js';
 import { CreateDocumentUseCase } from '../../src/application/documents/CreateDocument.js';
 import { DocumentNotFoundError } from '../../src/application/documents/errors.js';
@@ -46,22 +46,40 @@ beforeAll(async () => {
   );
 });
 
+beforeEach(async () => {
+  await purgeQueue();
+});
+
 afterEach(async () => {
   await db.collection('documents').deleteMany({});
-  // Drain any messages left over from a test so counts don't leak across tests.
-  let drained = await sqsClient.send(
-    new ReceiveMessageCommand({ QueueUrl: SQS_QUEUE_URL, MaxNumberOfMessages: 10, WaitTimeSeconds: 1 }),
-  );
-  while (drained.Messages?.length) {
-    drained = await sqsClient.send(
-      new ReceiveMessageCommand({ QueueUrl: SQS_QUEUE_URL, MaxNumberOfMessages: 10, WaitTimeSeconds: 1 }),
-    );
-  }
 });
 
 afterAll(async () => {
   await mongoClient.close();
 });
+
+// Receiving a message only hides it for the visibility timeout; it doesn't
+// remove it. LocalStack also persists queue contents across `npm test` runs
+// (see the localstack-data volume in docker-compose.yml), so without an
+// actual delete, messages from other tests/files or previous runs can
+// resurface here and get mistaken for the message this test just published.
+async function purgeQueue(): Promise<void> {
+  let result = await sqsClient.send(
+    new ReceiveMessageCommand({ QueueUrl: SQS_QUEUE_URL, MaxNumberOfMessages: 10, WaitTimeSeconds: 1 }),
+  );
+  while (result.Messages?.length) {
+    await Promise.all(
+      result.Messages.map((message) =>
+        sqsClient.send(
+          new DeleteMessageCommand({ QueueUrl: SQS_QUEUE_URL, ReceiptHandle: message.ReceiptHandle! }),
+        ),
+      ),
+    );
+    result = await sqsClient.send(
+      new ReceiveMessageCommand({ QueueUrl: SQS_QUEUE_URL, MaxNumberOfMessages: 10, WaitTimeSeconds: 1 }),
+    );
+  }
+}
 
 describe('CompleteUploadUseCase (S3 + SQS via LocalStack)', () => {
   it('stores the file in S3, transitions to QUEUED and publishes a processing message', async () => {

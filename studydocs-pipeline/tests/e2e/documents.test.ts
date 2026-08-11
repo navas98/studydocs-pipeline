@@ -5,8 +5,14 @@ import { CompleteUploadUseCase } from '../../src/application/documents/CompleteU
 import { CreateDocumentUseCase } from '../../src/application/documents/CreateDocument.js';
 import { GetDocumentUseCase } from '../../src/application/documents/GetDocument.js';
 import { ListDocumentsUseCase } from '../../src/application/documents/ListDocuments.js';
+import { SearchDocumentsUseCase } from '../../src/application/documents/SearchDocuments.js';
 import { buildApp } from '../../src/interfaces/http/app.js';
 import { createS3Client, createSqsClient } from '../../src/infrastructure/aws/clients.js';
+import {
+  createElasticsearchClient,
+  ensureDocumentsIndex,
+} from '../../src/infrastructure/elasticsearch/connection.js';
+import { ElasticsearchSearchIndex } from '../../src/infrastructure/elasticsearch/ElasticsearchSearchIndex.js';
 import { connectMongo, ensureDocumentIndexes } from '../../src/infrastructure/mongodb/connection.js';
 import { MongoDocumentRepository } from '../../src/infrastructure/mongodb/MongoDocumentRepository.js';
 import { S3ObjectStorage } from '../../src/infrastructure/s3/S3ObjectStorage.js';
@@ -18,6 +24,7 @@ const S3_BUCKET = process.env.S3_BUCKET ?? 'studydocs-pdfs';
 const SQS_QUEUE_URL =
   process.env.SQS_QUEUE_URL ??
   'http://sqs.us-east-1.localhost.localstack.cloud:4566/000000000000/studydocs-processing';
+const ELASTICSEARCH_NODE = process.env.ELASTICSEARCH_NODE ?? 'http://localhost:9200';
 
 process.env.AWS_ACCESS_KEY_ID ??= 'test';
 process.env.AWS_SECRET_ACCESS_KEY ??= 'test';
@@ -34,12 +41,16 @@ beforeAll(async () => {
   const awsConfig = { region: 'us-east-1', endpoint: AWS_ENDPOINT };
   const storage = new S3ObjectStorage(createS3Client(awsConfig), S3_BUCKET);
   const queue = new SqsDocumentQueue(createSqsClient(awsConfig), SQS_QUEUE_URL);
+  const esClient = createElasticsearchClient(ELASTICSEARCH_NODE);
+  await ensureDocumentsIndex(esClient);
+  const searchIndex = new ElasticsearchSearchIndex(esClient);
 
   app = await buildApp({
     createDocument: new CreateDocumentUseCase(repository),
     getDocument: new GetDocumentUseCase(repository),
     listDocuments: new ListDocumentsUseCase(repository),
     completeUpload: new CompleteUploadUseCase(repository, storage, queue),
+    searchDocuments: new SearchDocumentsUseCase(searchIndex),
   });
   await app.ready();
 });

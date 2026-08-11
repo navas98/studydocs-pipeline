@@ -1,16 +1,21 @@
 import type { Document } from '../../domain/document/Document.js';
 import type { DocumentProcessor } from '../../application/documents/DocumentProcessor.js';
 import type { ObjectStorage } from '../../application/documents/ObjectStorage.js';
+import type { SearchIndex } from '../../application/documents/SearchIndex.js';
 import { PermanentProcessingError, TransientProcessingError } from '../../application/documents/processingErrors.js';
 
 const PDF_MAGIC_BYTES = Buffer.from('%PDF');
 
-// Placeholder for the real pipeline: for now this only validates the file
-// actually looks like a PDF. Elasticsearch indexing is added in Day 3 once
-// that adapter exists; this class will grow an indexing step then instead
-// of a new one being introduced.
+// Validates the uploaded file is actually a PDF, then indexes its metadata
+// in Elasticsearch (section 4.1, step 7: indexing happens before the
+// document moves to INDEXED). A failed index write is treated as
+// transient — the file itself was fine, so retrying should succeed once
+// Elasticsearch is reachable again.
 export class PdfDocumentProcessor implements DocumentProcessor {
-  constructor(private readonly storage: ObjectStorage) {}
+  constructor(
+    private readonly storage: ObjectStorage,
+    private readonly searchIndex: SearchIndex,
+  ) {}
 
   async process(document: Document): Promise<void> {
     const props = document.toProps();
@@ -28,6 +33,13 @@ export class PdfDocumentProcessor implements DocumentProcessor {
 
     if (!file.subarray(0, PDF_MAGIC_BYTES.length).equals(PDF_MAGIC_BYTES)) {
       throw new PermanentProcessingError('File does not have a valid PDF header');
+    }
+
+    try {
+      await this.searchIndex.index(document);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new TransientProcessingError(`Failed to index document: ${message}`);
     }
   }
 }

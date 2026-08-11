@@ -5,6 +5,7 @@ export interface AppConfig {
   awsEndpoint: string | undefined;
   s3Bucket: string;
   sqsQueueUrl: string;
+  elasticsearchNode: string;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
@@ -35,5 +36,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     awsEndpoint: env['AWS_ENDPOINT_URL'],
     s3Bucket,
     sqsQueueUrl,
+    elasticsearchNode: env['ELASTICSEARCH_NODE'] ?? 'http://localhost:9200',
   };
 }

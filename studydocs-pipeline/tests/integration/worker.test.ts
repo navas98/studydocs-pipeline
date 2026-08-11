@@ -5,6 +5,11 @@ import { CompleteUploadUseCase } from '../../src/application/documents/CompleteU
 import { CreateDocumentUseCase } from '../../src/application/documents/CreateDocument.js';
 import { ProcessDocumentUseCase } from '../../src/application/documents/ProcessDocument.js';
 import { createS3Client, createSqsClient } from '../../src/infrastructure/aws/clients.js';
+import {
+  createElasticsearchClient,
+  ensureDocumentsIndex,
+} from '../../src/infrastructure/elasticsearch/connection.js';
+import { ElasticsearchSearchIndex } from '../../src/infrastructure/elasticsearch/ElasticsearchSearchIndex.js';
 import { connectMongo, ensureDocumentIndexes } from '../../src/infrastructure/mongodb/connection.js';
 import { MongoDocumentRepository } from '../../src/infrastructure/mongodb/MongoDocumentRepository.js';
 import { PdfDocumentProcessor } from '../../src/infrastructure/pdf/PdfDocumentProcessor.js';
@@ -18,6 +23,7 @@ const S3_BUCKET = process.env.S3_BUCKET ?? 'studydocs-pdfs';
 const SQS_QUEUE_URL =
   process.env.SQS_QUEUE_URL ??
   'http://sqs.us-east-1.localhost.localstack.cloud:4566/000000000000/studydocs-processing';
+const ELASTICSEARCH_NODE = process.env.ELASTICSEARCH_NODE ?? 'http://localhost:9200';
 
 process.env.AWS_ACCESS_KEY_ID ??= 'test';
 process.env.AWS_SECRET_ACCESS_KEY ??= 'test';
@@ -38,10 +44,14 @@ beforeAll(async () => {
   sqsClient = createSqsClient(awsConfig);
   const storage = new S3ObjectStorage(s3Client, S3_BUCKET);
 
+  const esClient = createElasticsearchClient(ELASTICSEARCH_NODE);
+  await ensureDocumentsIndex(esClient);
+  const searchIndex = new ElasticsearchSearchIndex(esClient);
+
   const repository = new MongoDocumentRepository(db);
   createDocument = new CreateDocumentUseCase(repository);
   completeUpload = new CompleteUploadUseCase(repository, storage, new SqsDocumentQueue(sqsClient, SQS_QUEUE_URL));
-  processDocument = new ProcessDocumentUseCase(repository, new PdfDocumentProcessor(storage));
+  processDocument = new ProcessDocumentUseCase(repository, new PdfDocumentProcessor(storage, searchIndex));
 });
 
 beforeEach(async () => {

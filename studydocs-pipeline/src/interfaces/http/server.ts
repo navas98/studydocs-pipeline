@@ -3,7 +3,13 @@ import { CompleteUploadUseCase } from '../../application/documents/CompleteUploa
 import { CreateDocumentUseCase } from '../../application/documents/CreateDocument.js';
 import { GetDocumentUseCase } from '../../application/documents/GetDocument.js';
 import { ListDocumentsUseCase } from '../../application/documents/ListDocuments.js';
+import { SearchDocumentsUseCase } from '../../application/documents/SearchDocuments.js';
 import { createS3Client, createSqsClient } from '../../infrastructure/aws/clients.js';
+import {
+  createElasticsearchClient,
+  ensureDocumentsIndex,
+} from '../../infrastructure/elasticsearch/connection.js';
+import { ElasticsearchSearchIndex } from '../../infrastructure/elasticsearch/ElasticsearchSearchIndex.js';
 import { connectMongo, ensureDocumentIndexes } from '../../infrastructure/mongodb/connection.js';
 import { MongoDocumentRepository } from '../../infrastructure/mongodb/MongoDocumentRepository.js';
 import { S3ObjectStorage } from '../../infrastructure/s3/S3ObjectStorage.js';
@@ -15,6 +21,9 @@ async function main(): Promise<void> {
   const { db } = await connectMongo(config.mongoUri);
   await ensureDocumentIndexes(db);
 
+  const esClient = createElasticsearchClient(config.elasticsearchNode);
+  await ensureDocumentsIndex(esClient);
+
   const repository = new MongoDocumentRepository(db);
   const awsClientConfig = {
     region: config.awsRegion,
@@ -22,12 +31,14 @@ async function main(): Promise<void> {
   };
   const storage = new S3ObjectStorage(createS3Client(awsClientConfig), config.s3Bucket);
   const queue = new SqsDocumentQueue(createSqsClient(awsClientConfig), config.sqsQueueUrl);
+  const searchIndex = new ElasticsearchSearchIndex(esClient);
 
   const app = await buildApp({
     createDocument: new CreateDocumentUseCase(repository),
     getDocument: new GetDocumentUseCase(repository),
     listDocuments: new ListDocumentsUseCase(repository),
     completeUpload: new CompleteUploadUseCase(repository, storage, queue),
+    searchDocuments: new SearchDocumentsUseCase(searchIndex),
   });
 
   await app.listen({ port: config.port, host: '0.0.0.0' });
