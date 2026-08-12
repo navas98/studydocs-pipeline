@@ -14,7 +14,7 @@ const primaryButtonClass = 'btn-neo btn-neo-primary self-start';
 
 export default function Demo() {
   const [ownerId, setOwnerId] = useState('demo-owner');
-  const { documents, polling, reload, retry } = useDocuments(ownerId);
+  const { documents, polling, reload, retry, remove } = useDocuments(ownerId);
 
   const [title, setTitle] = useState('');
   const [subject, setSubject] = useState('');
@@ -195,7 +195,9 @@ export default function Demo() {
               {documents.length === 0 ? (
                 <li className="text-sm text-text-muted">Sin documentos todavía. Sube uno arriba.</li>
               ) : (
-                documents.map((doc) => <DocumentRow key={doc.id} doc={doc} onRetry={(id) => void retry(id)} />)
+                documents.map((doc) => (
+                  <DocumentRow key={doc.id} doc={doc} onRetry={(id) => void retry(id)} onDelete={(id) => void remove(id)} />
+                ))
               )}
             </AnimatePresence>
           </ul>

@@ -54,4 +54,8 @@ export class MongoDocumentRepository implements DocumentRepository {
     );
     return result.matchedCount === 1;
   }
+
+  async delete(id: string): Promise<void> {
+    await this.collection.deleteOne({ _id: id });
+  }
 }

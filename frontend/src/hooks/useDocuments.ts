@@ -45,5 +45,13 @@ export function useDocuments(ownerId: string) {
     [load],
   );
 
-  return { documents, polling, reload: load, retry };
+  const remove = useCallback(
+    async (id: string) => {
+      await fetch(`/documents/${id}`, { method: 'DELETE' });
+      await load();
+    },
+    [load],
+  );
+
+  return { documents, polling, reload: load, retry, remove };
 }

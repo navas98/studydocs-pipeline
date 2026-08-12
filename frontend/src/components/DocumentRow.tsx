@@ -5,9 +5,10 @@ import type { DocumentDto } from '../types';
 interface Props {
   doc: DocumentDto;
   onRetry: (id: string) => void;
+  onDelete: (id: string) => void;
 }
 
-export default function DocumentRow({ doc, onRetry }: Props) {
+export default function DocumentRow({ doc, onRetry, onDelete }: Props) {
   const hasFile = doc.status !== 'CREATED';
   const meta = [doc.subject, doc.university, doc.tags.length ? doc.tags.join(', ') : null, doc.failureReason ? `⚠ ${doc.failureReason}` : null]
     .filter(Boolean)
@@ -47,6 +48,19 @@ export default function DocumentRow({ doc, onRetry }: Props) {
             Reintentar
           </button>
         )}
+        <button
+          type="button"
+          onClick={() => {
+            if (window.confirm(`¿Eliminar "${doc.title}"? Esta acción no se puede deshacer.`)) {
+              onDelete(doc.id);
+            }
+          }}
+          aria-label="Eliminar documento"
+          title="Eliminar documento"
+          className="flex h-7 w-7 items-center justify-center rounded-md border border-border text-sm text-text-muted transition-colors hover:border-[#ff6b6b] hover:text-[#ff6b6b]"
+        >
+          🗑️
+        </button>
       </div>
     </motion.li>
   );

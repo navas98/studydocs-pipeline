@@ -25,6 +25,10 @@ class InMemoryDocumentRepository implements DocumentRepository {
   async updateWithVersionCheck(): Promise<boolean> {
     throw new Error('not used in this test');
   }
+
+  async delete(): Promise<void> {
+    throw new Error('not used in this test');
+  }
 }
 
 class RecordingQueue implements DocumentQueue {

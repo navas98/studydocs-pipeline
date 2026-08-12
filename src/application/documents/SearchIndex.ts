@@ -24,4 +24,7 @@ export interface SearchResult {
 export interface SearchIndex {
   index(document: Document): Promise<void>;
   search(query: SearchQuery): Promise<SearchResult>;
+  // Idempotent: deleting a document that was never indexed (e.g. it never
+  // got past CREATED) is not an error.
+  delete(documentId: string): Promise<void>;
 }

@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import type { CompleteUploadUseCase } from '../../../application/documents/CompleteUpload.js';
 import type { CreateDocumentUseCase } from '../../../application/documents/CreateDocument.js';
+import type { DeleteDocumentUseCase } from '../../../application/documents/DeleteDocument.js';
 import type { DownloadDocumentFileUseCase } from '../../../application/documents/DownloadDocumentFile.js';
 import type { GetDocumentUseCase } from '../../../application/documents/GetDocument.js';
 import type { ListDocumentsUseCase } from '../../../application/documents/ListDocuments.js';
@@ -16,6 +17,7 @@ export interface DocumentRoutesDeps {
   updateDocumentMetadata: UpdateDocumentMetadataUseCase;
   retryDocument: RetryDocumentUseCase;
   downloadDocumentFile: DownloadDocumentFileUseCase;
+  deleteDocument: DeleteDocumentUseCase;
 }
 
 const ALLOWED_MIME_TYPES = new Set(['application/pdf']);
@@ -257,6 +259,28 @@ export function registerDocumentRoutes(app: FastifyInstance, deps: DocumentRoute
       const document = await deps.retryDocument.execute(id, request.id);
       reply.code(202);
       return toDocumentResponse(document);
+    },
+  );
+
+  app.delete(
+    '/documents/:id',
+    {
+      schema: {
+        params: {
+          type: 'object',
+          required: ['id'],
+          properties: { id: { type: 'string' } },
+        },
+        response: {
+          204: { type: 'null' },
+          404: errorResponseSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      await deps.deleteDocument.execute(id);
+      reply.code(204);
     },
   );
 }

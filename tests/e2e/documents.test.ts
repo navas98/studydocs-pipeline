@@ -3,6 +3,7 @@ import type { Db, MongoClient } from 'mongodb';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { CompleteUploadUseCase } from '../../src/application/documents/CompleteUpload.js';
 import { CreateDocumentUseCase } from '../../src/application/documents/CreateDocument.js';
+import { DeleteDocumentUseCase } from '../../src/application/documents/DeleteDocument.js';
 import { DownloadDocumentFileUseCase } from '../../src/application/documents/DownloadDocumentFile.js';
 import { GetDocumentUseCase } from '../../src/application/documents/GetDocument.js';
 import { ListDocumentsUseCase } from '../../src/application/documents/ListDocuments.js';
@@ -72,6 +73,7 @@ beforeAll(async () => {
     updateDocumentMetadata: new UpdateDocumentMetadataUseCase(repository),
     retryDocument: new RetryDocumentUseCase(repository, queue),
     downloadDocumentFile: new DownloadDocumentFileUseCase(repository, storage),
+    deleteDocument: new DeleteDocumentUseCase(repository, storage, searchIndex),
     checkHealth: createCheckHealth(db, esClient),
   });
   await app.ready();
@@ -381,6 +383,42 @@ describe('Documents HTTP API', () => {
 
     const response = await app.inject({ method: 'GET', url: `/documents/${id}/file` });
 
+    expect(response.statusCode).toBe(404);
+  });
+
+  it('deletes a document with an uploaded file', async () => {
+    const created = await app.inject({ method: 'POST', url: '/documents', payload: validPayload() });
+    const { id } = created.json();
+    const { body, contentType } = buildMultipartUpload('%PDF-1.4 real content');
+    await app.inject({
+      method: 'POST',
+      url: `/documents/${id}/complete-upload`,
+      headers: { 'content-type': contentType },
+      payload: body,
+    });
+
+    const response = await app.inject({ method: 'DELETE', url: `/documents/${id}` });
+    expect(response.statusCode).toBe(204);
+
+    const afterDelete = await app.inject({ method: 'GET', url: `/documents/${id}` });
+    expect(afterDelete.statusCode).toBe(404);
+    const fileAfterDelete = await app.inject({ method: 'GET', url: `/documents/${id}/file` });
+    expect(fileAfterDelete.statusCode).toBe(404);
+  });
+
+  it('deletes a document that never had a file uploaded', async () => {
+    const created = await app.inject({ method: 'POST', url: '/documents', payload: validPayload() });
+    const { id } = created.json();
+
+    const response = await app.inject({ method: 'DELETE', url: `/documents/${id}` });
+
+    expect(response.statusCode).toBe(204);
+    const afterDelete = await app.inject({ method: 'GET', url: `/documents/${id}` });
+    expect(afterDelete.statusCode).toBe(404);
+  });
+
+  it('returns 404 when deleting a document that does not exist', async () => {
+    const response = await app.inject({ method: 'DELETE', url: '/documents/does-not-exist' });
     expect(response.statusCode).toBe(404);
   });
 });

@@ -82,4 +82,16 @@ export class ElasticsearchSearchIndex implements SearchIndex {
       })),
     };
   }
+
+  async delete(documentId: string): Promise<void> {
+    // ignore 404: a document that never made it to INDEXED (still
+    // CREATED/QUEUED/FAILED) was never written here, so "already gone" is
+    // the expected outcome, not an error. refresh: 'wait_for' matches
+    // index() — without it, a search right after a delete can still see
+    // the "deleted" document until the next refresh interval.
+    await this.client.delete(
+      { index: this.indexName, id: documentId, refresh: 'wait_for' },
+      { ignore: [404] },
+    );
+  }
 }

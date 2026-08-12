@@ -23,6 +23,14 @@ class InMemoryDocumentRepository implements DocumentRepository {
   async findByOwner(): Promise<Document[]> {
     return [];
   }
+
+  async updateWithVersionCheck(): Promise<boolean> {
+    throw new Error('not used in this test');
+  }
+
+  async delete(): Promise<void> {
+    throw new Error('not used in this test');
+  }
 }
 
 function queuedDocument(): Document {

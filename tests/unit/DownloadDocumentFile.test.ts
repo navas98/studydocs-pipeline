@@ -24,6 +24,10 @@ class InMemoryDocumentRepository implements DocumentRepository {
   async updateWithVersionCheck(): Promise<boolean> {
     throw new Error('not used in this test');
   }
+
+  async delete(): Promise<void> {
+    throw new Error('not used in this test');
+  }
 }
 
 class FakeObjectStorage implements ObjectStorage {
@@ -32,6 +36,7 @@ class FakeObjectStorage implements ObjectStorage {
   async download(): Promise<Buffer> {
     return this.content;
   }
+  async delete(): Promise<void> {}
 }
 
 describe('DownloadDocumentFileUseCase', () => {

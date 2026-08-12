@@ -1,4 +1,4 @@
-import { GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import type { ObjectStorage } from '../../application/documents/ObjectStorage.js';
 
 export class S3ObjectStorage implements ObjectStorage {
@@ -27,5 +27,9 @@ export class S3ObjectStorage implements ObjectStorage {
       throw new Error(`Empty S3 object body for key: ${key}`);
     }
     return Buffer.from(bytes);
+  }
+
+  async delete(key: string): Promise<void> {
+    await this.client.send(new DeleteObjectCommand({ Bucket: this.bucket, Key: key }));
   }
 }

@@ -1,6 +1,7 @@
 import { loadConfig } from '../../config/env.js';
 import { CompleteUploadUseCase } from '../../application/documents/CompleteUpload.js';
 import { CreateDocumentUseCase } from '../../application/documents/CreateDocument.js';
+import { DeleteDocumentUseCase } from '../../application/documents/DeleteDocument.js';
 import { DownloadDocumentFileUseCase } from '../../application/documents/DownloadDocumentFile.js';
 import { GetDocumentUseCase } from '../../application/documents/GetDocument.js';
 import { ListDocumentsUseCase } from '../../application/documents/ListDocuments.js';
@@ -46,6 +47,7 @@ async function main(): Promise<void> {
     updateDocumentMetadata: new UpdateDocumentMetadataUseCase(repository),
     retryDocument: new RetryDocumentUseCase(repository, queue),
     downloadDocumentFile: new DownloadDocumentFileUseCase(repository, storage),
+    deleteDocument: new DeleteDocumentUseCase(repository, storage, searchIndex),
     checkHealth: createCheckHealth(db, esClient),
   });
 

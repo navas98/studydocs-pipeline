@@ -32,6 +32,10 @@ class InMemoryDocumentRepository implements DocumentRepository {
     this.store.set(document.id, document.toProps());
     return true;
   }
+
+  async delete(): Promise<void> {
+    throw new Error('not used in this test');
+  }
 }
 
 function newDocument(): Document {

@@ -7,6 +7,7 @@ import staticPlugin from '@fastify/static';
 import swagger from '@fastify/swagger';
 import type { CompleteUploadUseCase } from '../../application/documents/CompleteUpload.js';
 import type { CreateDocumentUseCase } from '../../application/documents/CreateDocument.js';
+import type { DeleteDocumentUseCase } from '../../application/documents/DeleteDocument.js';
 import type { DownloadDocumentFileUseCase } from '../../application/documents/DownloadDocumentFile.js';
 import type { GetDocumentUseCase } from '../../application/documents/GetDocument.js';
 import type { ListDocumentsUseCase } from '../../application/documents/ListDocuments.js';
@@ -32,6 +33,7 @@ export interface AppDeps {
   updateDocumentMetadata: UpdateDocumentMetadataUseCase;
   retryDocument: RetryDocumentUseCase;
   downloadDocumentFile: DownloadDocumentFileUseCase;
+  deleteDocument: DeleteDocumentUseCase;
   checkHealth: CheckHealth;
 }
 

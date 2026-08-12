@@ -4,6 +4,7 @@ import type { Db, MongoClient } from 'mongodb';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { CompleteUploadUseCase } from '../../src/application/documents/CompleteUpload.js';
 import { CreateDocumentUseCase } from '../../src/application/documents/CreateDocument.js';
+import { DeleteDocumentUseCase } from '../../src/application/documents/DeleteDocument.js';
 import { DownloadDocumentFileUseCase } from '../../src/application/documents/DownloadDocumentFile.js';
 import { GetDocumentUseCase } from '../../src/application/documents/GetDocument.js';
 import { ListDocumentsUseCase } from '../../src/application/documents/ListDocuments.js';
@@ -75,6 +76,7 @@ beforeAll(async () => {
     updateDocumentMetadata: new UpdateDocumentMetadataUseCase(repository),
     retryDocument: new RetryDocumentUseCase(repository, queue),
     downloadDocumentFile: new DownloadDocumentFileUseCase(repository, storage),
+    deleteDocument: new DeleteDocumentUseCase(repository, storage, searchIndex),
     checkHealth: createCheckHealth(db, esClient),
   });
   await app.ready();
@@ -177,6 +179,16 @@ describe('Search HTTP API', () => {
 
   it('returns an empty result set for a search with no matches', async () => {
     const response = await app.inject({ method: 'GET', url: '/search?text=nonexistent-term-xyz' });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({ total: 0, items: [] });
+  });
+
+  it('removes a deleted document from search results', async () => {
+    const id = await createIndexedDocument({ title: 'Apuntes de Trigonometría', tags: ['trigonometria'] });
+
+    await app.inject({ method: 'DELETE', url: `/documents/${id}` });
+    const response = await app.inject({ method: 'GET', url: '/search?text=trigonometria' });
 
     expect(response.statusCode).toBe(200);
     expect(response.json()).toEqual({ total: 0, items: [] });

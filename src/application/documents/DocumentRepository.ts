@@ -13,4 +13,5 @@ export interface DocumentRepository {
   // version-conditioned query they don't need — this is only exercised by
   // the metadata-update scenario in section 13.
   updateWithVersionCheck(document: Document, expectedVersion: number): Promise<boolean>;
+  delete(id: string): Promise<void>;
 }
