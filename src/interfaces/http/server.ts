@@ -18,7 +18,13 @@ import {
   ensureDocumentsIndex,
 } from '../../infrastructure/elasticsearch/connection.js';
 import { ElasticsearchSearchIndex } from '../../infrastructure/elasticsearch/ElasticsearchSearchIndex.js';
-import { connectMongo, ensureDocumentIndexes, ensureUserIndexes } from '../../infrastructure/mongodb/connection.js';
+import {
+  connectMongo,
+  ensureChunkIndexes,
+  ensureDocumentIndexes,
+  ensureUserIndexes,
+} from '../../infrastructure/mongodb/connection.js';
+import { MongoChunkRepository } from '../../infrastructure/mongodb/MongoChunkRepository.js';
 import { MongoDocumentRepository } from '../../infrastructure/mongodb/MongoDocumentRepository.js';
 import { MongoUserRepository } from '../../infrastructure/mongodb/MongoUserRepository.js';
 import { S3ObjectStorage } from '../../infrastructure/s3/S3ObjectStorage.js';
@@ -32,11 +38,13 @@ async function main(): Promise<void> {
   const { db } = await connectMongo(config.mongoUri);
   await ensureDocumentIndexes(db);
   await ensureUserIndexes(db);
+  await ensureChunkIndexes(db);
 
   const esClient = createElasticsearchClient(config.elasticsearchNode);
   await ensureDocumentsIndex(esClient, config.elasticsearchIndex);
 
   const repository = new MongoDocumentRepository(db);
+  const chunks = new MongoChunkRepository(db);
   const users = new MongoUserRepository(db);
   const passwordHasher = new BcryptPasswordHasher();
   const tokens = new JwtTokenService(config.jwtSecret, config.jwtExpiresIn);
@@ -57,7 +65,7 @@ async function main(): Promise<void> {
     updateDocumentMetadata: new UpdateDocumentMetadataUseCase(repository),
     retryDocument: new RetryDocumentUseCase(repository, queue),
     downloadDocumentFile: new DownloadDocumentFileUseCase(repository, storage),
-    deleteDocument: new DeleteDocumentUseCase(repository, storage, searchIndex),
+    deleteDocument: new DeleteDocumentUseCase(repository, storage, searchIndex, chunks),
     checkHealth: createCheckHealth(db, esClient),
     registerUser: new RegisterUserUseCase(users, passwordHasher),
     loginUser: new LoginUserUseCase(users, passwordHasher, tokens),

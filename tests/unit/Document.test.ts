@@ -21,7 +21,7 @@ describe('Document', () => {
     expect(doc.processingAttempts).toBe(0);
   });
 
-  it('follows the happy path CREATED -> UPLOADING -> QUEUED -> PROCESSING -> INDEXED', () => {
+  it('follows the happy path CREATED -> UPLOADING -> QUEUED -> PROCESSING -> EXTRACTING -> CHUNKING -> INDEXED', () => {
     const doc = createDocument();
 
     doc.startUpload('s3://bucket/key.pdf', 'application/pdf', 1024);
@@ -34,8 +34,42 @@ describe('Document', () => {
     expect(doc.status).toBe('PROCESSING');
     expect(doc.processingAttempts).toBe(1);
 
+    doc.beginExtracting();
+    expect(doc.status).toBe('EXTRACTING');
+
+    doc.beginChunking();
+    expect(doc.status).toBe('CHUNKING');
+
     doc.markIndexed();
     expect(doc.status).toBe('INDEXED');
+  });
+
+  it('rejects jumping straight from PROCESSING to INDEXED, skipping extraction and chunking', () => {
+    const doc = createDocument();
+    doc.startUpload('s3://bucket/key.pdf', 'application/pdf', 1024);
+    doc.enqueue();
+    doc.beginProcessing();
+
+    expect(() => doc.markIndexed()).toThrow(InvalidDocumentTransitionError);
+  });
+
+  it('allows retrying or failing from either EXTRACTING or CHUNKING', () => {
+    const extracting = createDocument();
+    extracting.startUpload('s3://bucket/key.pdf', 'application/pdf', 1024);
+    extracting.enqueue();
+    extracting.beginProcessing();
+    extracting.beginExtracting();
+    extracting.retry('extraction blew up');
+    expect(extracting.status).toBe('RETRYING');
+
+    const chunking = createDocument();
+    chunking.startUpload('s3://bucket/key.pdf', 'application/pdf', 1024);
+    chunking.enqueue();
+    chunking.beginProcessing();
+    chunking.beginExtracting();
+    chunking.beginChunking();
+    chunking.fail('chunk storage blew up');
+    expect(chunking.status).toBe('FAILED');
   });
 
   it('bumps version on every transition', () => {
@@ -58,6 +92,8 @@ describe('Document', () => {
     doc.startUpload('s3://bucket/key.pdf', 'application/pdf', 1024);
     doc.enqueue();
     doc.beginProcessing();
+    doc.beginExtracting();
+    doc.beginChunking();
     doc.markIndexed();
 
     expect(() => doc.beginProcessing()).toThrow(InvalidDocumentTransitionError);
@@ -136,6 +172,8 @@ describe('Document', () => {
     doc.beginProcessing();
     doc.retry('transient error');
     doc.beginProcessing();
+    doc.beginExtracting();
+    doc.beginChunking();
     doc.markIndexed();
 
     expect(doc.toProps().failureReason).toBeNull();

@@ -119,6 +119,14 @@ export class Document {
     this.props.processingAttempts += 1;
   }
 
+  beginExtracting(): void {
+    this.transitionTo('EXTRACTING');
+  }
+
+  beginChunking(): void {
+    this.transitionTo('CHUNKING');
+  }
+
   markIndexed(indexedAt: Date = new Date()): void {
     this.transitionTo('INDEXED');
     this.props.indexedAt = indexedAt;

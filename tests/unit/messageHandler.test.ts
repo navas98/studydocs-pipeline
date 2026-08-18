@@ -51,7 +51,12 @@ describe('handleMessage', () => {
     const repo = new InMemoryDocumentRepository();
     const document = queuedDocument();
     await repo.save(document);
-    const processor: DocumentProcessor = { process: async () => {} };
+    const processor: DocumentProcessor = {
+      process: async (_document, onStage) => {
+        await onStage('EXTRACTING');
+        await onStage('CHUNKING');
+      },
+    };
     const useCase = new ProcessDocumentUseCase(repo, processor, noopLogger);
 
     const result = await handleMessage(

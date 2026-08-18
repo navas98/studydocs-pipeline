@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import type { Chunk } from '../../src/domain/document/Chunk.js';
+import type { ChunkRepository } from '../../src/application/documents/ChunkRepository.js';
 import type { DocumentRepository } from '../../src/application/documents/DocumentRepository.js';
 import { DeleteDocumentUseCase } from '../../src/application/documents/DeleteDocument.js';
 import { DocumentNotFoundError } from '../../src/application/documents/errors.js';
@@ -57,6 +59,17 @@ class RecordingSearchIndex implements SearchIndex {
   }
 }
 
+class RecordingChunkRepository implements ChunkRepository {
+  public readonly deletedDocumentIds: string[] = [];
+  async saveMany(): Promise<void> {}
+  async findByDocumentId(): Promise<Chunk[]> {
+    return [];
+  }
+  async deleteByDocumentId(documentId: string): Promise<void> {
+    this.deletedDocumentIds.push(documentId);
+  }
+}
+
 function documentWithFile(): Document {
   const document = Document.create({
     ownerId: 'owner-1',
@@ -74,20 +87,23 @@ describe('DeleteDocumentUseCase', () => {
     const repo = new InMemoryDocumentRepository();
     const storage = new RecordingObjectStorage();
     const searchIndex = new RecordingSearchIndex();
+    const chunks = new RecordingChunkRepository();
     const document = documentWithFile();
     await repo.save(document);
 
-    await new DeleteDocumentUseCase(repo, storage, searchIndex).execute(document.id);
+    await new DeleteDocumentUseCase(repo, storage, searchIndex, chunks).execute(document.id);
 
     expect(repo.has(document.id)).toBe(false);
     expect(storage.deletedKeys).toEqual(['documents/x.pdf']);
     expect(searchIndex.deletedIds).toEqual([document.id]);
+    expect(chunks.deletedDocumentIds).toEqual([document.id]);
   });
 
   it('skips the storage delete for a document that never had a file uploaded', async () => {
     const repo = new InMemoryDocumentRepository();
     const storage = new RecordingObjectStorage();
     const searchIndex = new RecordingSearchIndex();
+    const chunks = new RecordingChunkRepository();
     const document = Document.create({
       ownerId: 'owner-1',
       title: 'Apuntes',
@@ -97,7 +113,7 @@ describe('DeleteDocumentUseCase', () => {
     });
     await repo.save(document);
 
-    await new DeleteDocumentUseCase(repo, storage, searchIndex).execute(document.id);
+    await new DeleteDocumentUseCase(repo, storage, searchIndex, chunks).execute(document.id);
 
     expect(repo.has(document.id)).toBe(false);
     expect(storage.deletedKeys).toEqual([]);
@@ -108,9 +124,10 @@ describe('DeleteDocumentUseCase', () => {
     const repo = new InMemoryDocumentRepository();
     const storage = new RecordingObjectStorage();
     const searchIndex = new RecordingSearchIndex();
+    const chunks = new RecordingChunkRepository();
 
-    await expect(new DeleteDocumentUseCase(repo, storage, searchIndex).execute('missing')).rejects.toThrow(
-      DocumentNotFoundError,
-    );
+    await expect(
+      new DeleteDocumentUseCase(repo, storage, searchIndex, chunks).execute('missing'),
+    ).rejects.toThrow(DocumentNotFoundError);
   });
 });

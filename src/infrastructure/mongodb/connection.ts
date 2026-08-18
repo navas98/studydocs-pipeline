@@ -25,3 +25,11 @@ export async function ensureUserIndexes(db: Db): Promise<void> {
   const collection = db.collection('users');
   await collection.createIndexes([{ key: { email: 1 }, name: 'email_unique', unique: true }]);
 }
+
+// documentId + position: the access pattern is always "give me this
+// document's chunks in reading order" (used to rebuild content for search
+// today, and for RAG context retrieval in phase 4+).
+export async function ensureChunkIndexes(db: Db): Promise<void> {
+  const collection = db.collection('chunks');
+  await collection.createIndexes([{ key: { documentId: 1, position: 1 }, name: 'documentId_position' }]);
+}

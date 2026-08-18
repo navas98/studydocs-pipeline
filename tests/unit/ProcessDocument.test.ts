@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Logger } from '../../src/application/Logger.js';
-import type { DocumentProcessor } from '../../src/application/documents/DocumentProcessor.js';
+import type { DocumentProcessor, OnProcessingStage } from '../../src/application/documents/DocumentProcessor.js';
 import type { DocumentRepository } from '../../src/application/documents/DocumentRepository.js';
 import { ProcessDocumentUseCase } from '../../src/application/documents/ProcessDocument.js';
 import { PermanentProcessingError, TransientProcessingError } from '../../src/application/documents/processingErrors.js';
@@ -47,7 +47,10 @@ function queuedDocument(): Document {
 }
 
 class AlwaysSucceedsProcessor implements DocumentProcessor {
-  async process(): Promise<void> {}
+  async process(_document: Document, onStage: OnProcessingStage): Promise<void> {
+    await onStage('EXTRACTING');
+    await onStage('CHUNKING');
+  }
 }
 
 class AlwaysFailsProcessor implements DocumentProcessor {
@@ -127,6 +130,8 @@ describe('ProcessDocumentUseCase', () => {
     const repo = new InMemoryDocumentRepository();
     const document = queuedDocument();
     document.beginProcessing();
+    document.beginExtracting();
+    document.beginChunking();
     document.markIndexed();
     await repo.save(document);
 

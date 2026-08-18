@@ -8,9 +8,11 @@ import {
 import { ElasticsearchSearchIndex } from '../infrastructure/elasticsearch/ElasticsearchSearchIndex.js';
 import { logger } from '../infrastructure/logging/logger.js';
 import { PinoLogger } from '../infrastructure/logging/PinoLogger.js';
-import { connectMongo, ensureDocumentIndexes } from '../infrastructure/mongodb/connection.js';
+import { connectMongo, ensureChunkIndexes, ensureDocumentIndexes } from '../infrastructure/mongodb/connection.js';
+import { MongoChunkRepository } from '../infrastructure/mongodb/MongoChunkRepository.js';
 import { MongoDocumentRepository } from '../infrastructure/mongodb/MongoDocumentRepository.js';
 import { PdfDocumentProcessor } from '../infrastructure/pdf/PdfDocumentProcessor.js';
+import { PdfTextExtractor } from '../infrastructure/pdf/PdfTextExtractor.js';
 import { S3ObjectStorage } from '../infrastructure/s3/S3ObjectStorage.js';
 import { createWorkerMetrics, recordOutcome } from './metrics.js';
 import { pollOnce } from './poll.js';
@@ -19,6 +21,7 @@ async function main(): Promise<void> {
   const config = loadConfig();
   const { db } = await connectMongo(config.mongoUri);
   await ensureDocumentIndexes(db);
+  await ensureChunkIndexes(db);
 
   const esClient = createElasticsearchClient(config.elasticsearchNode);
   await ensureDocumentsIndex(esClient, config.elasticsearchIndex);
@@ -30,10 +33,11 @@ async function main(): Promise<void> {
   const sqsClient = createSqsClient(awsClientConfig);
   const storage = new S3ObjectStorage(createS3Client(awsClientConfig), config.s3Bucket);
   const repository = new MongoDocumentRepository(db);
+  const chunks = new MongoChunkRepository(db);
   const searchIndex = new ElasticsearchSearchIndex(esClient, config.elasticsearchIndex);
   const useCase = new ProcessDocumentUseCase(
     repository,
-    new PdfDocumentProcessor(storage, searchIndex),
+    new PdfDocumentProcessor(storage, searchIndex, new PdfTextExtractor(), chunks),
     new PinoLogger(logger),
   );
 

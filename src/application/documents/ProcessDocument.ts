@@ -44,7 +44,15 @@ export class ProcessDocumentUseCase {
     );
 
     try {
-      await this.processor.process(document);
+      await this.processor.process(document, async (stage) => {
+        if (stage === 'EXTRACTING') {
+          document.beginExtracting();
+        } else {
+          document.beginChunking();
+        }
+        await this.documents.save(document);
+        this.logger.info({ documentId, correlationId, stage }, 'processing stage changed');
+      });
       document.markIndexed();
       await this.documents.save(document);
       this.logger.info(

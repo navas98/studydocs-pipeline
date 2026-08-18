@@ -47,6 +47,7 @@ export async function ensureDocumentsIndex(client: Client, indexName: string): P
           fields: { keyword: { type: 'keyword' } },
         },
         tags: { type: 'keyword' },
+        content: { type: 'text', analyzer: 'spanish_folding' },
       },
     },
   });

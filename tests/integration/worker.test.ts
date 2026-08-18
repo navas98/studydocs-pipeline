@@ -12,9 +12,11 @@ import {
 import { ElasticsearchSearchIndex } from '../../src/infrastructure/elasticsearch/ElasticsearchSearchIndex.js';
 import { logger } from '../../src/infrastructure/logging/logger.js';
 import { PinoLogger } from '../../src/infrastructure/logging/PinoLogger.js';
-import { connectMongo, ensureDocumentIndexes } from '../../src/infrastructure/mongodb/connection.js';
+import { connectMongo, ensureChunkIndexes, ensureDocumentIndexes } from '../../src/infrastructure/mongodb/connection.js';
+import { MongoChunkRepository } from '../../src/infrastructure/mongodb/MongoChunkRepository.js';
 import { MongoDocumentRepository } from '../../src/infrastructure/mongodb/MongoDocumentRepository.js';
 import { PdfDocumentProcessor } from '../../src/infrastructure/pdf/PdfDocumentProcessor.js';
+import { PdfTextExtractor } from '../../src/infrastructure/pdf/PdfTextExtractor.js';
 import { S3ObjectStorage } from '../../src/infrastructure/s3/S3ObjectStorage.js';
 import { SqsDocumentQueue } from '../../src/infrastructure/sqs/SqsDocumentQueue.js';
 import { pollOnce } from '../../src/worker/poll.js';
@@ -41,6 +43,7 @@ let processDocument: ProcessDocumentUseCase;
 beforeAll(async () => {
   ({ client: mongoClient, db } = await connectMongo(MONGO_URI));
   await ensureDocumentIndexes(db);
+  await ensureChunkIndexes(db);
 
   const awsConfig = { region: 'us-east-1', endpoint: AWS_ENDPOINT };
   const s3Client = createS3Client(awsConfig);
@@ -52,11 +55,12 @@ beforeAll(async () => {
   const searchIndex = new ElasticsearchSearchIndex(esClient, ELASTICSEARCH_INDEX);
 
   const repository = new MongoDocumentRepository(db);
+  const chunkRepository = new MongoChunkRepository(db);
   createDocument = new CreateDocumentUseCase(repository);
   completeUpload = new CompleteUploadUseCase(repository, storage, new SqsDocumentQueue(sqsClient, SQS_QUEUE_URL));
   processDocument = new ProcessDocumentUseCase(
     repository,
-    new PdfDocumentProcessor(storage, searchIndex),
+    new PdfDocumentProcessor(storage, searchIndex, new PdfTextExtractor(), chunkRepository),
     new PinoLogger(logger),
   );
 });
@@ -95,6 +99,36 @@ async function purgeQueue(): Promise<void> {
   }
 }
 
+// A structurally valid single-page PDF — unlike a bare "%PDF-1.4 ..." blob,
+// this actually parses under pdfjs-dist (via pdf-parse), which real text
+// extraction needs.
+function minimalValidPdf(text: string): Buffer {
+  const escaped = text.replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)');
+  const content = `BT /F1 18 Tf 50 750 Td (${escaped}) Tj ET`;
+  const objects = [
+    '<< /Type /Catalog /Pages 2 0 R >>',
+    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+    '<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 4 0 R >> >> /MediaBox [0 0 595 842] /Contents 5 0 R >>',
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+    `<< /Length ${content.length} >>\nstream\n${content}\nendstream`,
+  ];
+
+  let out = '%PDF-1.4\n';
+  const offsets: number[] = [0];
+  objects.forEach((obj, i) => {
+    offsets.push(Buffer.byteLength(out));
+    out += `${i + 1} 0 obj\n${obj}\nendobj\n`;
+  });
+  const xrefOffset = Buffer.byteLength(out);
+  out += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+  for (const offset of offsets.slice(1)) {
+    out += `${String(offset).padStart(10, '0')} 00000 n \n`;
+  }
+  out += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`;
+
+  return Buffer.from(out, 'latin1');
+}
+
 async function drainQueue(): Promise<number> {
   const result = await sqsClient.send(
     new ReceiveMessageCommand({ QueueUrl: SQS_QUEUE_URL, MaxNumberOfMessages: 10, WaitTimeSeconds: 1 }),
@@ -113,7 +147,7 @@ describe('worker pollOnce (real Mongo + S3 + SQS via LocalStack)', () => {
     });
     await completeUpload.execute({
       documentId: document.id,
-      file: Buffer.from('%PDF-1.4 real-looking content'),
+      file: minimalValidPdf('Apuntes de prueba'),
       mimeType: 'application/pdf',
     });
 

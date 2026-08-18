@@ -28,10 +28,17 @@ import {
 import { ElasticsearchSearchIndex } from '../../src/infrastructure/elasticsearch/ElasticsearchSearchIndex.js';
 import { logger } from '../../src/infrastructure/logging/logger.js';
 import { PinoLogger } from '../../src/infrastructure/logging/PinoLogger.js';
-import { connectMongo, ensureDocumentIndexes, ensureUserIndexes } from '../../src/infrastructure/mongodb/connection.js';
+import {
+  connectMongo,
+  ensureChunkIndexes,
+  ensureDocumentIndexes,
+  ensureUserIndexes,
+} from '../../src/infrastructure/mongodb/connection.js';
+import { MongoChunkRepository } from '../../src/infrastructure/mongodb/MongoChunkRepository.js';
 import { MongoDocumentRepository } from '../../src/infrastructure/mongodb/MongoDocumentRepository.js';
 import { MongoUserRepository } from '../../src/infrastructure/mongodb/MongoUserRepository.js';
 import { PdfDocumentProcessor } from '../../src/infrastructure/pdf/PdfDocumentProcessor.js';
+import { PdfTextExtractor } from '../../src/infrastructure/pdf/PdfTextExtractor.js';
 import { S3ObjectStorage } from '../../src/infrastructure/s3/S3ObjectStorage.js';
 import { SqsDocumentQueue } from '../../src/infrastructure/sqs/SqsDocumentQueue.js';
 
@@ -60,6 +67,7 @@ beforeAll(async () => {
   ({ client: mongoClient, db } = await connectMongo(MONGO_URI));
   await ensureDocumentIndexes(db);
   await ensureUserIndexes(db);
+  await ensureChunkIndexes(db);
   await db.collection('users').deleteMany({});
 
   esClient = createElasticsearchClient(ELASTICSEARCH_NODE);
@@ -67,6 +75,7 @@ beforeAll(async () => {
   const searchIndex = new ElasticsearchSearchIndex(esClient, ELASTICSEARCH_INDEX);
 
   const repository = new MongoDocumentRepository(db);
+  const chunkRepository = new MongoChunkRepository(db);
   const users = new MongoUserRepository(db);
   const passwordHasher = new BcryptPasswordHasher();
   const tokens = new JwtTokenService(JWT_SECRET, '1h');
@@ -76,7 +85,7 @@ beforeAll(async () => {
   const queue = new SqsDocumentQueue(sqsClient, SQS_QUEUE_URL);
   processDocument = new ProcessDocumentUseCase(
     repository,
-    new PdfDocumentProcessor(storage, searchIndex),
+    new PdfDocumentProcessor(storage, searchIndex, new PdfTextExtractor(), chunkRepository),
     new PinoLogger(logger),
   );
 
@@ -89,7 +98,7 @@ beforeAll(async () => {
     updateDocumentMetadata: new UpdateDocumentMetadataUseCase(repository),
     retryDocument: new RetryDocumentUseCase(repository, queue),
     downloadDocumentFile: new DownloadDocumentFileUseCase(repository, storage),
-    deleteDocument: new DeleteDocumentUseCase(repository, storage, searchIndex),
+    deleteDocument: new DeleteDocumentUseCase(repository, storage, searchIndex, chunkRepository),
     checkHealth: createCheckHealth(db, esClient),
     registerUser: new RegisterUserUseCase(users, passwordHasher),
     loginUser: new LoginUserUseCase(users, passwordHasher, tokens),
@@ -139,7 +148,37 @@ afterAll(async () => {
   await mongoClient.close();
 });
 
-async function createIndexedDocument(overrides: Record<string, unknown> = {}) {
+// A structurally valid single-page PDF (as a string — every byte here is
+// within the ASCII range, so it's safe to splice into the multipart body
+// string below) — unlike a bare "%PDF-1.4 ..." blob, this actually parses
+// under pdfjs-dist (via pdf-parse), which real text extraction needs.
+function minimalValidPdf(text: string): string {
+  const escaped = text.replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)');
+  const content = `BT /F1 18 Tf 50 750 Td (${escaped}) Tj ET`;
+  const objects = [
+    '<< /Type /Catalog /Pages 2 0 R >>',
+    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+    '<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 4 0 R >> >> /MediaBox [0 0 595 842] /Contents 5 0 R >>',
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+    `<< /Length ${content.length} >>\nstream\n${content}\nendstream`,
+  ];
+
+  let out = '%PDF-1.4\n';
+  const offsets: number[] = [0];
+  objects.forEach((obj, i) => {
+    offsets.push(Buffer.byteLength(out));
+    out += `${i + 1} 0 obj\n${obj}\nendobj\n`;
+  });
+  const xrefOffset = Buffer.byteLength(out);
+  out += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+  for (const offset of offsets.slice(1)) {
+    out += `${String(offset).padStart(10, '0')} 00000 n \n`;
+  }
+  out += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`;
+  return out;
+}
+
+async function createIndexedDocument(overrides: Record<string, unknown> = {}, pdfText = 'contenido de prueba') {
   const created = await app.inject({
     method: 'POST',
     url: '/documents',
@@ -160,7 +199,7 @@ async function createIndexedDocument(overrides: Record<string, unknown> = {}) {
     'Content-Disposition: form-data; name="file"; filename="test.pdf"',
     'Content-Type: application/pdf',
     '',
-    '%PDF-1.4 fake content',
+    minimalValidPdf(pdfText),
     `--${boundary}--`,
     '',
   ].join('\r\n');
@@ -181,6 +220,20 @@ describe('Search HTTP API', () => {
     const id = await createIndexedDocument();
 
     const response = await app.inject({ method: 'GET', url: '/search?text=algebra', headers: authHeader });
+
+    expect(response.statusCode).toBe(200);
+    const body = response.json();
+    expect(body.total).toBe(1);
+    expect(body.items[0].documentId).toBe(id);
+  });
+
+  it('finds a document by text that only appears inside the PDF content, not its metadata', async () => {
+    const id = await createIndexedDocument(
+      { title: 'Apuntes genéricos', tags: [] },
+      'La derivada de una función mide su tasa de cambio instantánea.',
+    );
+
+    const response = await app.inject({ method: 'GET', url: '/search?text=derivada', headers: authHeader });
 
     expect(response.statusCode).toBe(200);
     const body = response.json();

@@ -26,10 +26,17 @@ import {
 import { ElasticsearchSearchIndex } from '../../src/infrastructure/elasticsearch/ElasticsearchSearchIndex.js';
 import { logger } from '../../src/infrastructure/logging/logger.js';
 import { PinoLogger } from '../../src/infrastructure/logging/PinoLogger.js';
-import { connectMongo, ensureDocumentIndexes, ensureUserIndexes } from '../../src/infrastructure/mongodb/connection.js';
+import {
+  connectMongo,
+  ensureChunkIndexes,
+  ensureDocumentIndexes,
+  ensureUserIndexes,
+} from '../../src/infrastructure/mongodb/connection.js';
+import { MongoChunkRepository } from '../../src/infrastructure/mongodb/MongoChunkRepository.js';
 import { MongoDocumentRepository } from '../../src/infrastructure/mongodb/MongoDocumentRepository.js';
 import { MongoUserRepository } from '../../src/infrastructure/mongodb/MongoUserRepository.js';
 import { PdfDocumentProcessor } from '../../src/infrastructure/pdf/PdfDocumentProcessor.js';
+import { PdfTextExtractor } from '../../src/infrastructure/pdf/PdfTextExtractor.js';
 import { S3ObjectStorage } from '../../src/infrastructure/s3/S3ObjectStorage.js';
 import { SqsDocumentQueue } from '../../src/infrastructure/sqs/SqsDocumentQueue.js';
 import { DeleteMessageCommand, ReceiveMessageCommand, SQSClient } from '@aws-sdk/client-sqs';
@@ -65,9 +72,11 @@ beforeAll(async () => {
   ({ client, db } = await connectMongo(MONGO_URI));
   await ensureDocumentIndexes(db);
   await ensureUserIndexes(db);
+  await ensureChunkIndexes(db);
   await db.collection('users').deleteMany({});
 
   const repository = new MongoDocumentRepository(db);
+  const chunkRepository = new MongoChunkRepository(db);
   const users = new MongoUserRepository(db);
   const passwordHasher = new BcryptPasswordHasher();
   const tokens = new JwtTokenService(JWT_SECRET, '1h');
@@ -80,7 +89,7 @@ beforeAll(async () => {
   const searchIndex = new ElasticsearchSearchIndex(esClient, ELASTICSEARCH_INDEX);
   processDocument = new ProcessDocumentUseCase(
     repository,
-    new PdfDocumentProcessor(storage, searchIndex),
+    new PdfDocumentProcessor(storage, searchIndex, new PdfTextExtractor(), chunkRepository),
     new PinoLogger(logger),
   );
 
@@ -93,7 +102,7 @@ beforeAll(async () => {
     updateDocumentMetadata: new UpdateDocumentMetadataUseCase(repository),
     retryDocument: new RetryDocumentUseCase(repository, queue),
     downloadDocumentFile: new DownloadDocumentFileUseCase(repository, storage),
-    deleteDocument: new DeleteDocumentUseCase(repository, storage, searchIndex),
+    deleteDocument: new DeleteDocumentUseCase(repository, storage, searchIndex, chunkRepository),
     checkHealth: createCheckHealth(db, esClient),
     registerUser: new RegisterUserUseCase(users, passwordHasher),
     loginUser: new LoginUserUseCase(users, passwordHasher, tokens),

@@ -26,7 +26,11 @@ export interface SearchResult {
 }
 
 export interface SearchIndex {
-  index(document: Document): Promise<void>;
+  // content is the concatenated, cleaned text of the document's chunks
+  // (v2 phase 2) — optional so callers indexing before extraction exists
+  // (or re-indexing metadata only) don't need to thread an empty string
+  // through everywhere.
+  index(document: Document, content?: string): Promise<void>;
   search(query: SearchQuery): Promise<SearchResult>;
   // Idempotent: deleting a document that was never indexed (e.g. it never
   // got past CREATED) is not an error.

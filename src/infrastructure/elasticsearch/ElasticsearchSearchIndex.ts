@@ -12,6 +12,7 @@ interface DocumentSearchBody {
   subject: string;
   university: string;
   tags: string[];
+  content?: string;
 }
 
 export class ElasticsearchSearchIndex implements SearchIndex {
@@ -20,7 +21,7 @@ export class ElasticsearchSearchIndex implements SearchIndex {
     private readonly indexName: string,
   ) {}
 
-  async index(document: Document): Promise<void> {
+  async index(document: Document, content?: string): Promise<void> {
     const props = document.toProps();
     const body: DocumentSearchBody = {
       ownerId: props.ownerId,
@@ -28,6 +29,7 @@ export class ElasticsearchSearchIndex implements SearchIndex {
       subject: props.subject,
       university: props.university,
       tags: props.tags,
+      ...(content !== undefined ? { content } : {}),
     };
 
     // refresh: 'wait_for' trades a little write latency for read-your-writes
@@ -47,7 +49,7 @@ export class ElasticsearchSearchIndex implements SearchIndex {
 
     if (query.text) {
       must.push({
-        multi_match: { query: query.text, fields: ['title', 'subject', 'university', 'tags'] },
+        multi_match: { query: query.text, fields: ['title', 'subject', 'university', 'tags', 'content'] },
       });
     }
     // match_phrase_prefix instead of an exact term match on the .keyword
