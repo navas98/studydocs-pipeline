@@ -1,12 +1,14 @@
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { CompleteUploadUseCase } from '../../../application/documents/CompleteUpload.js';
 import type { CreateDocumentUseCase } from '../../../application/documents/CreateDocument.js';
 import type { DeleteDocumentUseCase } from '../../../application/documents/DeleteDocument.js';
 import type { DownloadDocumentFileUseCase } from '../../../application/documents/DownloadDocumentFile.js';
+import { ForbiddenError } from '../../../application/documents/errors.js';
 import type { GetDocumentUseCase } from '../../../application/documents/GetDocument.js';
 import type { ListDocumentsUseCase } from '../../../application/documents/ListDocuments.js';
 import type { RetryDocumentUseCase } from '../../../application/documents/RetryDocument.js';
 import type { UpdateDocumentMetadataUseCase } from '../../../application/documents/UpdateDocumentMetadata.js';
+import type { Document } from '../../../domain/document/Document.js';
 import { toDocumentResponse } from '../documentMapper.js';
 
 export interface DocumentRoutesDeps {
@@ -43,6 +45,22 @@ const documentResponseSchema = {
 
 const errorResponseSchema = { type: 'object', properties: { error: { type: 'string' } } } as const;
 
+function currentUserId(request: FastifyRequest): string {
+  // Guaranteed present: these routes only run behind the auth preHandler
+  // hook registered in app.ts, which sets request.user or throws first.
+  return request.user!.id;
+}
+
+// A document not owned by the caller behaves like it doesn't exist for
+// GET/read purposes would be one option, but this app is small enough
+// (two real users) that a clear 403 is more useful for debugging than
+// hiding behind a fake 404.
+function assertOwnership(document: Document, userId: string): void {
+  if (document.ownerId !== userId) {
+    throw new ForbiddenError();
+  }
+}
+
 export function registerDocumentRoutes(app: FastifyInstance, deps: DocumentRoutesDeps): void {
   app.post(
     '/documents',
@@ -50,9 +68,8 @@ export function registerDocumentRoutes(app: FastifyInstance, deps: DocumentRoute
       schema: {
         body: {
           type: 'object',
-          required: ['ownerId', 'title', 'subject', 'university'],
+          required: ['title', 'subject', 'university'],
           properties: {
-            ownerId: { type: 'string', minLength: 1 },
             title: { type: 'string', minLength: 1 },
             subject: { type: 'string', minLength: 1 },
             university: { type: 'string', minLength: 1 },
@@ -64,13 +81,16 @@ export function registerDocumentRoutes(app: FastifyInstance, deps: DocumentRoute
     },
     async (request, reply) => {
       const body = request.body as {
-        ownerId: string;
         title: string;
         subject: string;
         university: string;
         tags?: string[];
       };
-      const document = await deps.createDocument.execute({ ...body, tags: body.tags ?? [] });
+      const document = await deps.createDocument.execute({
+        ...body,
+        tags: body.tags ?? [],
+        ownerId: currentUserId(request),
+      });
       reply.code(201);
       return toDocumentResponse(document);
     },
@@ -98,6 +118,7 @@ export function registerDocumentRoutes(app: FastifyInstance, deps: DocumentRoute
         reply.code(404);
         return { error: 'Document not found' };
       }
+      assertOwnership(document, currentUserId(request));
       return toDocumentResponse(document);
     },
   );
@@ -139,6 +160,11 @@ export function registerDocumentRoutes(app: FastifyInstance, deps: DocumentRoute
         tags?: string[];
       };
 
+      const existing = await deps.getDocument.execute(id);
+      if (existing) {
+        assertOwnership(existing, currentUserId(request));
+      }
+
       const document = await deps.updateDocumentMetadata.execute({
         documentId: id,
         expectedVersion: version,
@@ -149,14 +175,12 @@ export function registerDocumentRoutes(app: FastifyInstance, deps: DocumentRoute
   );
 
   app.get(
-    '/documents',
+    '/me/documents',
     {
       schema: {
         querystring: {
           type: 'object',
-          required: ['ownerId'],
           properties: {
-            ownerId: { type: 'string', minLength: 1 },
             limit: { type: 'integer', minimum: 1, maximum: 100 },
             offset: { type: 'integer', minimum: 0 },
           },
@@ -167,8 +191,8 @@ export function registerDocumentRoutes(app: FastifyInstance, deps: DocumentRoute
       },
     },
     async (request) => {
-      const query = request.query as { ownerId: string; limit?: number; offset?: number };
-      const documents = await deps.listDocuments.execute(query);
+      const query = request.query as { limit?: number; offset?: number };
+      const documents = await deps.listDocuments.execute({ ...query, ownerId: currentUserId(request) });
       return documents.map(toDocumentResponse);
     },
   );
@@ -192,6 +216,11 @@ export function registerDocumentRoutes(app: FastifyInstance, deps: DocumentRoute
     },
     async (request, reply) => {
       const { id } = request.params as { id: string };
+
+      const existing = await deps.getDocument.execute(id);
+      if (existing) {
+        assertOwnership(existing, currentUserId(request));
+      }
 
       const uploadedFile = await request.file();
       if (!uploadedFile || !ALLOWED_MIME_TYPES.has(uploadedFile.mimetype)) {
@@ -228,6 +257,12 @@ export function registerDocumentRoutes(app: FastifyInstance, deps: DocumentRoute
     },
     async (request, reply) => {
       const { id } = request.params as { id: string };
+
+      const existing = await deps.getDocument.execute(id);
+      if (existing) {
+        assertOwnership(existing, currentUserId(request));
+      }
+
       const file = await deps.downloadDocumentFile.execute(id);
       reply
         .header('Content-Type', file.mimeType)
@@ -256,6 +291,12 @@ export function registerDocumentRoutes(app: FastifyInstance, deps: DocumentRoute
     },
     async (request, reply) => {
       const { id } = request.params as { id: string };
+
+      const existing = await deps.getDocument.execute(id);
+      if (existing) {
+        assertOwnership(existing, currentUserId(request));
+      }
+
       const document = await deps.retryDocument.execute(id, request.id);
       reply.code(202);
       return toDocumentResponse(document);
@@ -279,6 +320,12 @@ export function registerDocumentRoutes(app: FastifyInstance, deps: DocumentRoute
     },
     async (request, reply) => {
       const { id } = request.params as { id: string };
+
+      const existing = await deps.getDocument.execute(id);
+      if (existing) {
+        assertOwnership(existing, currentUserId(request));
+      }
+
       await deps.deleteDocument.execute(id);
       reply.code(204);
     },

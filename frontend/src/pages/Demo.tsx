@@ -5,6 +5,7 @@ import Card from '../components/Card';
 import SectionHeading from '../components/SectionHeading';
 import DocumentRow from '../components/DocumentRow';
 import { useDocuments } from '../hooks/useDocuments';
+import { apiFetch, openDocumentFile } from '../lib/api';
 import type { SearchHit } from '../types';
 
 const inputClass =
@@ -13,8 +14,7 @@ const inputClass =
 const primaryButtonClass = 'btn-neo btn-neo-primary self-start';
 
 export default function Demo() {
-  const [ownerId, setOwnerId] = useState('demo-owner');
-  const { documents, polling, reload, retry, remove } = useDocuments(ownerId);
+  const { documents, polling, reload, retry, remove } = useDocuments();
 
   const [title, setTitle] = useState('');
   const [subject, setSubject] = useState('');
@@ -38,11 +38,10 @@ export default function Demo() {
     setUploadStatus('Creando metadatos...');
 
     try {
-      const createResponse = await fetch('/documents', {
+      const createResponse = await apiFetch('/documents', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          ownerId,
           title,
           subject,
           university,
@@ -60,7 +59,7 @@ export default function Demo() {
       setUploadStatus('Subiendo PDF...');
       const formData = new FormData();
       formData.append('file', file);
-      const uploadResponse = await fetch(`/documents/${created.id}/complete-upload`, {
+      const uploadResponse = await apiFetch(`/documents/${created.id}/complete-upload`, {
         method: 'POST',
         body: formData,
       });
@@ -91,7 +90,7 @@ export default function Demo() {
     if (searchSubject.trim()) params.set('subject', searchSubject.trim());
     if (searchUniversity.trim()) params.set('university', searchUniversity.trim());
 
-    const response = await fetch(`/search?${params.toString()}`);
+    const response = await apiFetch(`/search?${params.toString()}`);
     const result = await response.json();
     setSearchResults(result.items);
   }
@@ -113,10 +112,6 @@ export default function Demo() {
             1. Subir un documento
           </h2>
           <form onSubmit={handleUpload} className="flex flex-col gap-3">
-            <label className="flex flex-col gap-1 text-sm text-text-muted">
-              Owner ID
-              <input className={inputClass} value={ownerId} onChange={(event) => setOwnerId(event.target.value)} required />
-            </label>
             <label className="flex flex-col gap-1 text-sm text-text-muted">
               Título
               <input
@@ -233,14 +228,13 @@ export default function Demo() {
               ) : (
                 searchResults.map((item) => (
                   <li key={item.documentId} className="rounded-lg border border-border bg-bg-elevated px-3.5 py-2.5">
-                    <a
-                      href={`/documents/${item.documentId}/file`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="font-semibold text-accent hover:text-accent-2 hover:underline"
+                    <button
+                      type="button"
+                      onClick={() => void openDocumentFile(item.documentId)}
+                      className="text-left font-semibold text-accent hover:text-accent-2 hover:underline"
                     >
                       {item.title}
-                    </a>
+                    </button>
                     <div className="text-[0.8rem] text-text-muted">
                       {[item.subject, item.university, item.tags.join(', ')].filter(Boolean).join(' · ')}
                     </div>

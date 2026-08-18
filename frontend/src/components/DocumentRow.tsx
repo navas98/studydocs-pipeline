@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion';
 import StatusBadge from './StatusBadge';
+import { openDocumentFile } from '../lib/api';
 import type { DocumentDto } from '../types';
 
 interface Props {
@@ -24,14 +25,13 @@ export default function DocumentRow({ doc, onRetry, onDelete }: Props) {
     >
       <div className="min-w-0 flex flex-col gap-0.5">
         {hasFile ? (
-          <a
-            href={`/documents/${doc.id}/file`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="truncate font-semibold text-accent hover:text-accent-2 hover:underline"
+          <button
+            type="button"
+            onClick={() => void openDocumentFile(doc.id)}
+            className="truncate text-left font-semibold text-accent hover:text-accent-2 hover:underline"
           >
             {doc.title}
-          </a>
+          </button>
         ) : (
           <span className="truncate font-semibold">{doc.title}</span>
         )}

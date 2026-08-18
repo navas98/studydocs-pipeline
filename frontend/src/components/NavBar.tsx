@@ -1,5 +1,6 @@
-import { NavLink } from 'react-router-dom';
+import { NavLink, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import { useAuth } from '../hooks/useAuth';
 
 const links = [
   { to: '/', label: 'Inicio' },
@@ -8,6 +9,9 @@ const links = [
 ];
 
 export default function NavBar() {
+  const { isAuthenticated, logout } = useAuth();
+  const navigate = useNavigate();
+
   return (
     <nav className="glass sticky top-0 z-20 flex flex-wrap items-center justify-between gap-3 border-x-0 border-t-0 px-6 py-4">
       <NavLink
@@ -18,7 +22,7 @@ export default function NavBar() {
         <span className="inline-block h-2 w-2 rounded-full bg-gradient-to-br from-accent to-accent-2 shadow-[0_0_10px_rgba(91,140,255,0.8)]" />
         StudyDocs Pipeline
       </NavLink>
-      <div className="flex gap-6">
+      <div className="flex items-center gap-6">
         {links.map((link) => (
           <NavLink
             key={link.to}
@@ -42,6 +46,25 @@ export default function NavBar() {
             )}
           </NavLink>
         ))}
+        {isAuthenticated ? (
+          <button
+            type="button"
+            onClick={() => {
+              logout();
+              navigate('/');
+            }}
+            className="text-base font-semibold uppercase tracking-wide text-text-muted transition-colors hover:text-text"
+          >
+            Salir
+          </button>
+        ) : (
+          <NavLink
+            to="/login"
+            className="text-base font-semibold uppercase tracking-wide text-text-muted transition-colors hover:text-text"
+          >
+            Entrar
+          </NavLink>
+        )}
       </div>
     </nav>
   );

@@ -51,7 +51,7 @@ export function registerSearchRoutes(app: FastifyInstance, deps: SearchRoutesDep
         limit?: number;
         offset?: number;
       };
-      return deps.searchDocuments.execute(query);
+      return deps.searchDocuments.execute({ ...query, ownerId: request.user!.id });
     },
   );
 }

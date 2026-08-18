@@ -1,6 +1,7 @@
 import type { SearchIndex, SearchResult } from './SearchIndex.js';
 
 export interface SearchDocumentsQuery {
+  ownerId: string;
   text?: string;
   subject?: string;
   university?: string;
@@ -16,6 +17,7 @@ export class SearchDocumentsUseCase {
 
   async execute(query: SearchDocumentsQuery): Promise<SearchResult> {
     return this.searchIndex.search({
+      ownerId: query.ownerId,
       ...(query.text !== undefined ? { text: query.text } : {}),
       ...(query.subject !== undefined ? { subject: query.subject } : {}),
       ...(query.university !== undefined ? { university: query.university } : {}),

@@ -58,7 +58,7 @@ describe('ElasticsearchSearchIndex (real Elasticsearch)', () => {
     const document = algebraDocument();
     await searchIndex.index(document);
 
-    const result = await searchIndex.search({ text: 'algebra', limit: 20, offset: 0 });
+    const result = await searchIndex.search({ ownerId: 'owner-1', text: 'algebra', limit: 20, offset: 0 });
 
     expect(result.total).toBe(1);
     expect(result.items[0]?.documentId).toBe(document.id);
@@ -68,7 +68,7 @@ describe('ElasticsearchSearchIndex (real Elasticsearch)', () => {
     await searchIndex.index(algebraDocument());
     await searchIndex.index(physicsDocument());
 
-    const result = await searchIndex.search({ subject: 'Física', limit: 20, offset: 0 });
+    const result = await searchIndex.search({ ownerId: 'owner-1', subject: 'Física', limit: 20, offset: 0 });
 
     expect(result.total).toBe(1);
     expect(result.items[0]?.subject).toBe('Física');
@@ -79,6 +79,7 @@ describe('ElasticsearchSearchIndex (real Elasticsearch)', () => {
     await searchIndex.index(physicsDocument());
 
     const result = await searchIndex.search({
+      ownerId: 'owner-1',
       university: 'Universidad de Sevilla',
       limit: 20,
       offset: 0,
@@ -93,7 +94,7 @@ describe('ElasticsearchSearchIndex (real Elasticsearch)', () => {
     await searchIndex.index(document);
     await searchIndex.index(document);
 
-    const result = await searchIndex.search({ text: 'algebra', limit: 20, offset: 0 });
+    const result = await searchIndex.search({ ownerId: 'owner-1', text: 'algebra', limit: 20, offset: 0 });
     expect(result.total).toBe(1);
   });
 
@@ -101,8 +102,8 @@ describe('ElasticsearchSearchIndex (real Elasticsearch)', () => {
     await searchIndex.index(algebraDocument());
     await searchIndex.index(physicsDocument());
 
-    const page1 = await searchIndex.search({ limit: 1, offset: 0 });
-    const page2 = await searchIndex.search({ limit: 1, offset: 1 });
+    const page1 = await searchIndex.search({ ownerId: 'owner-1', limit: 1, offset: 0 });
+    const page2 = await searchIndex.search({ ownerId: 'owner-1', limit: 1, offset: 1 });
 
     expect(page1.items).toHaveLength(1);
     expect(page2.items).toHaveLength(1);

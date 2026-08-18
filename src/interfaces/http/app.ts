@@ -5,6 +5,8 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import multipart from '@fastify/multipart';
 import staticPlugin from '@fastify/static';
 import swagger from '@fastify/swagger';
+import type { LoginUserUseCase } from '../../application/auth/LoginUser.js';
+import type { RegisterUserUseCase } from '../../application/auth/RegisterUser.js';
 import type { CompleteUploadUseCase } from '../../application/documents/CompleteUpload.js';
 import type { CreateDocumentUseCase } from '../../application/documents/CreateDocument.js';
 import type { DeleteDocumentUseCase } from '../../application/documents/DeleteDocument.js';
@@ -14,7 +16,9 @@ import type { ListDocumentsUseCase } from '../../application/documents/ListDocum
 import type { RetryDocumentUseCase } from '../../application/documents/RetryDocument.js';
 import type { SearchDocumentsUseCase } from '../../application/documents/SearchDocuments.js';
 import type { UpdateDocumentMetadataUseCase } from '../../application/documents/UpdateDocumentMetadata.js';
+import type { AuthMiddleware } from './authMiddleware.js';
 import { registerErrorHandler } from './errorHandler.js';
+import { registerAuthRoutes } from './routes/auth.js';
 import { registerDocumentRoutes } from './routes/documents.js';
 import { registerSearchRoutes } from './routes/search.js';
 
@@ -35,6 +39,9 @@ export interface AppDeps {
   downloadDocumentFile: DownloadDocumentFileUseCase;
   deleteDocument: DeleteDocumentUseCase;
   checkHealth: CheckHealth;
+  registerUser: RegisterUserUseCase;
+  loginUser: LoginUserUseCase;
+  authMiddleware: AuthMiddleware;
 }
 
 const MAX_UPLOAD_BYTES = 20 * 1024 * 1024; // 20 MB, per section 14 (max size restriction)
@@ -81,8 +88,16 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     return { status: healthy ? 'ok' : 'error', checks };
   });
 
-  registerDocumentRoutes(app, deps);
-  registerSearchRoutes(app, deps);
+  registerAuthRoutes(app, deps);
+
+  // Everything under this plugin requires a valid Bearer token — the
+  // preHandler hook is scoped to this encapsulation context, so /auth/*,
+  // /health and the static frontend stay public.
+  await app.register(async (protectedRoutes) => {
+    protectedRoutes.addHook('preHandler', deps.authMiddleware);
+    registerDocumentRoutes(protectedRoutes, deps);
+    registerSearchRoutes(protectedRoutes, deps);
+  });
 
   // React Router uses client-side routing (/demo, /decisions have no
   // matching file on disk), so any unmatched GET falls back to the SPA

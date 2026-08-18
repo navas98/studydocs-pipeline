@@ -16,3 +16,12 @@ export async function ensureDocumentIndexes(db: Db): Promise<void> {
     { key: { status: 1 }, name: 'status' },
   ]);
 }
+
+// unique: true is the real defense against the race where two registration
+// requests for the same email both pass the RegisterUser use case's
+// findByEmail check before either has written — the use case check is just
+// a fast path for the common (non-racing) case.
+export async function ensureUserIndexes(db: Db): Promise<void> {
+  const collection = db.collection('users');
+  await collection.createIndexes([{ key: { email: 1 }, name: 'email_unique', unique: true }]);
+}

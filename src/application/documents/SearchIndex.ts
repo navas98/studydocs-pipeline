@@ -1,6 +1,10 @@
 import type { Document } from '../../domain/document/Document.js';
 
 export interface SearchQuery {
+  // Required, and always taken from the authenticated user, never from
+  // client input — otherwise a crafted query could search across other
+  // users' private documents.
+  ownerId: string;
   text?: string;
   subject?: string;
   university?: string;

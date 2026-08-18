@@ -7,6 +7,8 @@ export interface AppConfig {
   sqsQueueUrl: string;
   elasticsearchNode: string;
   elasticsearchIndex: string;
+  jwtSecret: string;
+  jwtExpiresIn: string;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
@@ -30,6 +32,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     throw new Error(`Invalid PORT: ${env['PORT']}`);
   }
 
+  const jwtSecret = env['JWT_SECRET'];
+  if (!jwtSecret) {
+    throw new Error('JWT_SECRET is required');
+  }
+
   return {
     port,
     mongoUri,
@@ -39,5 +46,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     sqsQueueUrl,
     elasticsearchNode: env['ELASTICSEARCH_NODE'] ?? 'http://localhost:9200',
     elasticsearchIndex: env['ELASTICSEARCH_INDEX'] ?? 'documents',
+    jwtSecret,
+    jwtExpiresIn: env['JWT_EXPIRES_IN'] ?? '7d',
   };
 }

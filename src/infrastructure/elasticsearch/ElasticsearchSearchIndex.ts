@@ -7,6 +7,7 @@ import type {
 import type { Document } from '../../domain/document/Document.js';
 
 interface DocumentSearchBody {
+  ownerId: string;
   title: string;
   subject: string;
   university: string;
@@ -22,6 +23,7 @@ export class ElasticsearchSearchIndex implements SearchIndex {
   async index(document: Document): Promise<void> {
     const props = document.toProps();
     const body: DocumentSearchBody = {
+      ownerId: props.ownerId,
       title: props.title,
       subject: props.subject,
       university: props.university,
@@ -41,7 +43,7 @@ export class ElasticsearchSearchIndex implements SearchIndex {
 
   async search(query: SearchQuery): Promise<SearchResult> {
     const must: estypes.QueryDslQueryContainer[] = [];
-    const filter: estypes.QueryDslQueryContainer[] = [];
+    const filter: estypes.QueryDslQueryContainer[] = [{ term: { ownerId: query.ownerId } }];
 
     if (query.text) {
       must.push({

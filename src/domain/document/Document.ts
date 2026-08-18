@@ -87,6 +87,10 @@ export class Document {
     return this.props.id;
   }
 
+  get ownerId(): string {
+    return this.props.ownerId;
+  }
+
   get status(): DocumentStatus {
     return this.props.status;
   }

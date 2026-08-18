@@ -1,22 +1,24 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { apiFetch } from '../lib/api';
 import type { DocumentDto } from '../types';
 import { NON_TERMINAL_STATUSES } from '../types';
 
 const POLL_INTERVAL_MS = 2000;
 
-export function useDocuments(ownerId: string) {
+export function useDocuments() {
   const [documents, setDocuments] = useState<DocumentDto[]>([]);
   const [polling, setPolling] = useState(false);
   const timerRef = useRef<number | null>(null);
 
   const load = useCallback(async () => {
-    const response = await fetch(`/documents?ownerId=${encodeURIComponent(ownerId)}&limit=20`);
+    const response = await apiFetch('/me/documents?limit=20');
+    if (!response.ok) return;
     const docs: DocumentDto[] = await response.json();
     setDocuments(docs);
 
     const anyInFlight = docs.some((doc) => NON_TERMINAL_STATUSES.has(doc.status));
     setPolling(anyInFlight);
-  }, [ownerId]);
+  }, []);
 
   useEffect(() => {
     void load();
@@ -39,7 +41,7 @@ export function useDocuments(ownerId: string) {
 
   const retry = useCallback(
     async (id: string) => {
-      await fetch(`/documents/${id}/retry`, { method: 'POST' });
+      await apiFetch(`/documents/${id}/retry`, { method: 'POST' });
       await load();
     },
     [load],
@@ -47,7 +49,7 @@ export function useDocuments(ownerId: string) {
 
   const remove = useCallback(
     async (id: string) => {
-      await fetch(`/documents/${id}`, { method: 'DELETE' });
+      await apiFetch(`/documents/${id}`, { method: 'DELETE' });
       await load();
     },
     [load],

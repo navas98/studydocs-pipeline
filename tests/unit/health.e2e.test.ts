@@ -18,6 +18,9 @@ function buildDeps(checkHealth: AppDeps['checkHealth']): AppDeps {
     downloadDocumentFile: unusedUseCase,
     deleteDocument: unusedUseCase,
     checkHealth,
+    registerUser: unusedUseCase,
+    loginUser: unusedUseCase,
+    authMiddleware: async () => {},
   };
 }
 

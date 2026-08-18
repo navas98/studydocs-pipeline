@@ -1,4 +1,6 @@
 import { loadConfig } from '../../config/env.js';
+import { LoginUserUseCase } from '../../application/auth/LoginUser.js';
+import { RegisterUserUseCase } from '../../application/auth/RegisterUser.js';
 import { CompleteUploadUseCase } from '../../application/documents/CompleteUpload.js';
 import { CreateDocumentUseCase } from '../../application/documents/CreateDocument.js';
 import { DeleteDocumentUseCase } from '../../application/documents/DeleteDocument.js';
@@ -9,27 +11,35 @@ import { RetryDocumentUseCase } from '../../application/documents/RetryDocument.
 import { SearchDocumentsUseCase } from '../../application/documents/SearchDocuments.js';
 import { UpdateDocumentMetadataUseCase } from '../../application/documents/UpdateDocumentMetadata.js';
 import { createS3Client, createSqsClient } from '../../infrastructure/aws/clients.js';
+import { BcryptPasswordHasher } from '../../infrastructure/auth/BcryptPasswordHasher.js';
+import { JwtTokenService } from '../../infrastructure/auth/JwtTokenService.js';
 import {
   createElasticsearchClient,
   ensureDocumentsIndex,
 } from '../../infrastructure/elasticsearch/connection.js';
 import { ElasticsearchSearchIndex } from '../../infrastructure/elasticsearch/ElasticsearchSearchIndex.js';
-import { connectMongo, ensureDocumentIndexes } from '../../infrastructure/mongodb/connection.js';
+import { connectMongo, ensureDocumentIndexes, ensureUserIndexes } from '../../infrastructure/mongodb/connection.js';
 import { MongoDocumentRepository } from '../../infrastructure/mongodb/MongoDocumentRepository.js';
+import { MongoUserRepository } from '../../infrastructure/mongodb/MongoUserRepository.js';
 import { S3ObjectStorage } from '../../infrastructure/s3/S3ObjectStorage.js';
 import { SqsDocumentQueue } from '../../infrastructure/sqs/SqsDocumentQueue.js';
 import { buildApp } from './app.js';
+import { createAuthMiddleware } from './authMiddleware.js';
 import { createCheckHealth } from './health.js';
 
 async function main(): Promise<void> {
   const config = loadConfig();
   const { db } = await connectMongo(config.mongoUri);
   await ensureDocumentIndexes(db);
+  await ensureUserIndexes(db);
 
   const esClient = createElasticsearchClient(config.elasticsearchNode);
   await ensureDocumentsIndex(esClient, config.elasticsearchIndex);
 
   const repository = new MongoDocumentRepository(db);
+  const users = new MongoUserRepository(db);
+  const passwordHasher = new BcryptPasswordHasher();
+  const tokens = new JwtTokenService(config.jwtSecret, config.jwtExpiresIn);
   const awsClientConfig = {
     region: config.awsRegion,
     ...(config.awsEndpoint ? { endpoint: config.awsEndpoint } : {}),
@@ -49,6 +59,9 @@ async function main(): Promise<void> {
     downloadDocumentFile: new DownloadDocumentFileUseCase(repository, storage),
     deleteDocument: new DeleteDocumentUseCase(repository, storage, searchIndex),
     checkHealth: createCheckHealth(db, esClient),
+    registerUser: new RegisterUserUseCase(users, passwordHasher),
+    loginUser: new LoginUserUseCase(users, passwordHasher, tokens),
+    authMiddleware: createAuthMiddleware(tokens),
   });
 
   await app.listen({ port: config.port, host: '0.0.0.0' });

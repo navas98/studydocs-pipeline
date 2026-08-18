@@ -34,6 +34,7 @@ export async function ensureDocumentsIndex(client: Client, indexName: string): P
     },
     mappings: {
       properties: {
+        ownerId: { type: 'keyword' },
         title: { type: 'text', analyzer: 'spanish_folding' },
         subject: {
           type: 'text',
