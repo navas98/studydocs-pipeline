@@ -415,6 +415,64 @@ describe('Documents HTTP API', () => {
     expect(response.statusCode).toBe(404);
   });
 
+  it('streams a single event and closes immediately for a document already in a terminal status', async () => {
+    const created = await app.inject({
+      method: 'POST',
+      url: '/documents',
+      headers: authHeader,
+      payload: validPayload(),
+    });
+    const { id } = created.json();
+    const { body, contentType } = buildMultipartUpload('not actually a pdf');
+    await app.inject({
+      method: 'POST',
+      url: `/documents/${id}/complete-upload`,
+      headers: { ...authHeader, 'content-type': contentType },
+      payload: body,
+    });
+    await processDocument.execute(id, 'test-correlation-id');
+
+    const response = await app.inject({
+      method: 'GET',
+      url: `/documents/${id}/events`,
+      headers: authHeader,
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.headers['content-type']).toBe('text/event-stream');
+    const events = response.payload.trim().split('\n\n');
+    expect(events).toHaveLength(1);
+    const payload = JSON.parse(events[0]!.replace('data: ', ''));
+    expect(payload.id).toBe(id);
+    expect(payload.status).toBe('FAILED');
+  });
+
+  it('returns 404 when streaming events for a document that does not exist', async () => {
+    const response = await app.inject({
+      method: 'GET',
+      url: '/documents/does-not-exist/events',
+      headers: authHeader,
+    });
+    expect(response.statusCode).toBe(404);
+  });
+
+  it('returns 403 when streaming events for a document owned by another user', async () => {
+    const created = await app.inject({
+      method: 'POST',
+      url: '/documents',
+      headers: authHeader,
+      payload: validPayload(),
+    });
+    const { id } = created.json();
+
+    const response = await app.inject({
+      method: 'GET',
+      url: `/documents/${id}/events`,
+      headers: otherAuthHeader,
+    });
+    expect(response.statusCode).toBe(403);
+  });
+
   it('retries a FAILED document and moves it back to QUEUED', async () => {
     const created = await app.inject({
       method: 'POST',

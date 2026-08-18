@@ -9,7 +9,14 @@ import type { ListDocumentsUseCase } from '../../../application/documents/ListDo
 import type { RetryDocumentUseCase } from '../../../application/documents/RetryDocument.js';
 import type { UpdateDocumentMetadataUseCase } from '../../../application/documents/UpdateDocumentMetadata.js';
 import type { Document } from '../../../domain/document/Document.js';
+import { NON_TERMINAL_STATUSES } from '../../../domain/document/DocumentStatus.js';
 import { toDocumentResponse } from '../documentMapper.js';
+
+// How often an open /documents/:id/events connection re-checks the
+// document for a status change. Simple poll-and-diff rather than Mongo
+// change streams (which need a replica set we don't run) — good enough
+// at this scale and avoids adding infra just for this.
+const SSE_POLL_INTERVAL_MS = 1000;
 
 export interface DocumentRoutesDeps {
   createDocument: CreateDocumentUseCase;
@@ -270,6 +277,74 @@ export function registerDocumentRoutes(app: FastifyInstance, deps: DocumentRoute
         // new tab instead of forcing a download.
         .header('Content-Disposition', `inline; filename="${file.filename}"`);
       return file.buffer;
+    },
+  );
+
+  app.get(
+    '/documents/:id/events',
+    {
+      schema: {
+        params: {
+          type: 'object',
+          required: ['id'],
+          properties: { id: { type: 'string' } },
+        },
+        response: {
+          404: errorResponseSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+
+      const existing = await deps.getDocument.execute(id);
+      if (!existing) {
+        reply.code(404);
+        return { error: 'Document not found' };
+      }
+      assertOwnership(existing, currentUserId(request));
+
+      // Takes over the raw response for a long-lived stream — Fastify's
+      // normal reply lifecycle (onSend hooks, schema serialization) does
+      // not apply past this point.
+      reply.hijack();
+      reply.raw.writeHead(200, {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        Connection: 'keep-alive',
+      });
+
+      let lastPayload: string | null = null;
+      const send = (document: Document): void => {
+        const payload = JSON.stringify(toDocumentResponse(document));
+        if (payload === lastPayload) return;
+        lastPayload = payload;
+        reply.raw.write(`data: ${payload}\n\n`);
+      };
+
+      send(existing);
+      if (!NON_TERMINAL_STATUSES.has(existing.status)) {
+        reply.raw.end();
+        return;
+      }
+
+      const interval = setInterval(() => {
+        void (async () => {
+          const document = await deps.getDocument.execute(id);
+          if (!document) {
+            clearInterval(interval);
+            reply.raw.end();
+            return;
+          }
+          send(document);
+          if (!NON_TERMINAL_STATUSES.has(document.status)) {
+            clearInterval(interval);
+            reply.raw.end();
+          }
+        })();
+      }, SSE_POLL_INTERVAL_MS);
+
+      request.raw.on('close', () => clearInterval(interval));
     },
   );
 

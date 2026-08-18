@@ -39,3 +39,15 @@ const ALLOWED_TRANSITIONS: Record<DocumentStatus, readonly DocumentStatus[]> = {
 export function canTransition(from: DocumentStatus, to: DocumentStatus): boolean {
   return ALLOWED_TRANSITIONS[from].includes(to);
 }
+
+// Statuses where the automatic pipeline is still doing something —
+// CREATED/INDEXED/FAILED are all "nothing more will happen without a
+// human/queue action", so live progress streams (SSE) close on those.
+export const NON_TERMINAL_STATUSES = new Set<DocumentStatus>([
+  'UPLOADING',
+  'QUEUED',
+  'PROCESSING',
+  'EXTRACTING',
+  'CHUNKING',
+  'RETRYING',
+]);
