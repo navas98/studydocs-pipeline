@@ -20,3 +20,14 @@ export class InvalidTokenError extends Error {
     this.name = 'InvalidTokenError';
   }
 }
+
+// Deliberate policy choice (not auto-merge): an email already registered
+// with a password can't also sign in via Google — the user is told to use
+// their password instead, rather than silently attaching a second login
+// method to an account they may not have intended to share.
+export class EmailRegisteredWithPasswordError extends Error {
+  constructor(public readonly email: string) {
+    super(`${email} is already registered with a password. Log in with your password instead.`);
+    this.name = 'EmailRegisteredWithPasswordError';
+  }
+}

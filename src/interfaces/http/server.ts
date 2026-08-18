@@ -1,5 +1,6 @@
 import { loadConfig } from '../../config/env.js';
 import { LoginUserUseCase } from '../../application/auth/LoginUser.js';
+import { LoginWithGoogleUseCase } from '../../application/auth/LoginWithGoogle.js';
 import { RegisterUserUseCase } from '../../application/auth/RegisterUser.js';
 import { CompleteUploadUseCase } from '../../application/documents/CompleteUpload.js';
 import { CreateDocumentUseCase } from '../../application/documents/CreateDocument.js';
@@ -12,6 +13,7 @@ import { SearchDocumentsUseCase } from '../../application/documents/SearchDocume
 import { UpdateDocumentMetadataUseCase } from '../../application/documents/UpdateDocumentMetadata.js';
 import { createS3Client, createSqsClient } from '../../infrastructure/aws/clients.js';
 import { BcryptPasswordHasher } from '../../infrastructure/auth/BcryptPasswordHasher.js';
+import { GoogleAuthTokenVerifier } from '../../infrastructure/auth/GoogleAuthTokenVerifier.js';
 import { JwtTokenService } from '../../infrastructure/auth/JwtTokenService.js';
 import {
   createElasticsearchClient,
@@ -55,6 +57,9 @@ async function main(): Promise<void> {
   const storage = new S3ObjectStorage(createS3Client(awsClientConfig), config.s3Bucket);
   const queue = new SqsDocumentQueue(createSqsClient(awsClientConfig), config.sqsQueueUrl);
   const searchIndex = new ElasticsearchSearchIndex(esClient, config.elasticsearchIndex);
+  const loginWithGoogle = config.googleClientId
+    ? new LoginWithGoogleUseCase(users, new GoogleAuthTokenVerifier(config.googleClientId), tokens)
+    : undefined;
 
   const app = await buildApp({
     createDocument: new CreateDocumentUseCase(repository),
@@ -69,6 +74,7 @@ async function main(): Promise<void> {
     checkHealth: createCheckHealth(db, esClient),
     registerUser: new RegisterUserUseCase(users, passwordHasher),
     loginUser: new LoginUserUseCase(users, passwordHasher, tokens),
+    ...(loginWithGoogle ? { loginWithGoogle } : {}),
     authMiddleware: createAuthMiddleware(tokens),
   });
 

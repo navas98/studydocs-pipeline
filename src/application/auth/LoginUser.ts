@@ -23,10 +23,11 @@ export class LoginUserUseCase {
   async execute(input: LoginUserInput): Promise<LoginResult> {
     const email = input.email.trim().toLowerCase();
     const user = await this.users.findByEmail(email);
-    // Same error for "no such user" and "wrong password" — see
+    // Same error for "no such user", "wrong password", and "this account
+    // has no password because it was created via Google" — see
     // InvalidCredentialsError's comment on why that distinction isn't
     // exposed to the caller.
-    if (!user) {
+    if (!user || user.passwordHash === null) {
       throw new InvalidCredentialsError();
     }
 

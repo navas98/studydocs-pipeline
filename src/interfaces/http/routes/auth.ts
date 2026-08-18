@@ -1,10 +1,14 @@
 import type { FastifyInstance } from 'fastify';
 import type { LoginUserUseCase } from '../../../application/auth/LoginUser.js';
+import type { LoginWithGoogleUseCase } from '../../../application/auth/LoginWithGoogle.js';
 import type { RegisterUserUseCase } from '../../../application/auth/RegisterUser.js';
 
 export interface AuthRoutesDeps {
   registerUser: RegisterUserUseCase;
   loginUser: LoginUserUseCase;
+  // Only set once GOOGLE_CLIENT_ID is configured — POST /auth/google isn't
+  // registered at all otherwise, rather than existing and always failing.
+  loginWithGoogle?: LoginWithGoogleUseCase;
 }
 
 const credentialsSchema = {
@@ -60,4 +64,32 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AuthRoutesDeps): 
       return deps.loginUser.execute({ email, password });
     },
   );
+
+  if (deps.loginWithGoogle) {
+    const loginWithGoogle = deps.loginWithGoogle;
+    app.post(
+      '/auth/google',
+      {
+        schema: {
+          body: {
+            type: 'object',
+            required: ['idToken'],
+            properties: { idToken: { type: 'string', minLength: 1 } },
+          },
+          response: {
+            200: {
+              type: 'object',
+              properties: { accessToken: { type: 'string' }, userId: { type: 'string' } },
+            },
+            401: errorResponseSchema,
+            409: errorResponseSchema,
+          },
+        },
+      },
+      async (request) => {
+        const { idToken } = request.body as { idToken: string };
+        return loginWithGoogle.execute(idToken);
+      },
+    );
+  }
 }

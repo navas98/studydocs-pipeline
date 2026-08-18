@@ -1,16 +1,21 @@
 import { randomUUID } from 'node:crypto';
 
 export type UserRole = 'USER' | 'ADMIN';
+export type AuthProvider = 'local' | 'google';
 
 export interface CreateUserInput {
   email: string;
-  passwordHash: string;
+  passwordHash: string | null;
+  authProvider: AuthProvider;
 }
 
 export interface UserProps {
   id: string;
   email: string;
-  passwordHash: string;
+  // null for accounts created via Google — there's no password to check,
+  // so LoginUserUseCase must never let one of these through.
+  passwordHash: string | null;
+  authProvider: AuthProvider;
   role: UserRole;
   createdAt: Date;
   updatedAt: Date;
@@ -28,6 +33,7 @@ export class User {
       id: randomUUID(),
       email: input.email,
       passwordHash: input.passwordHash,
+      authProvider: input.authProvider,
       role: 'USER',
       createdAt: now,
       updatedAt: now,
@@ -54,7 +60,11 @@ export class User {
     return this.props.role;
   }
 
-  get passwordHash(): string {
+  get passwordHash(): string | null {
     return this.props.passwordHash;
+  }
+
+  get authProvider(): AuthProvider {
+    return this.props.authProvider;
   }
 }

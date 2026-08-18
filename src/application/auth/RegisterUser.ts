@@ -22,7 +22,7 @@ export class RegisterUserUseCase {
     }
 
     const passwordHash = await this.passwordHasher.hash(input.password);
-    const user = User.create({ email, passwordHash });
+    const user = User.create({ email, passwordHash, authProvider: 'local' });
     await this.users.create(user);
     return user;
   }

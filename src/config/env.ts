@@ -9,6 +9,10 @@ export interface AppConfig {
   elasticsearchIndex: string;
   jwtSecret: string;
   jwtExpiresIn: string;
+  // Optional: "Sign in with Google" stays disabled (its route isn't even
+  // registered) until this is set, rather than the app refusing to boot
+  // for a feature nobody has configured yet.
+  googleClientId: string | undefined;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
@@ -48,5 +52,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     elasticsearchIndex: env['ELASTICSEARCH_INDEX'] ?? 'documents',
     jwtSecret,
     jwtExpiresIn: env['JWT_EXPIRES_IN'] ?? '7d',
+    googleClientId: env['GOOGLE_CLIENT_ID'],
   };
 }

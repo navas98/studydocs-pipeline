@@ -6,12 +6,14 @@ const STYLES: Record<DocumentStatus, string> = {
   UPLOADING: 'bg-[#2a3a5c] text-[#8fb2ff]',
   QUEUED: 'bg-[#2a3a5c] text-[#8fb2ff]',
   PROCESSING: 'bg-[#5c4a1f] text-[#ffcf6b]',
+  EXTRACTING: 'bg-[#3a2f5c] text-[#c3a6ff]',
+  CHUNKING: 'bg-[#3a2f5c] text-[#c3a6ff]',
   RETRYING: 'bg-[#5c4a1f] text-[#ffcf6b]',
   INDEXED: 'bg-[#1f5c33] text-[#6bffa0]',
   FAILED: 'bg-[#5c1f1f] text-[#ff6b6b]',
 };
 
-const PULSING = new Set<DocumentStatus>(['PROCESSING', 'RETRYING']);
+const PULSING = new Set<DocumentStatus>(['PROCESSING', 'EXTRACTING', 'CHUNKING', 'RETRYING']);
 
 export default function StatusBadge({ status }: { status: DocumentStatus }) {
   return (

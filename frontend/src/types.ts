@@ -1,4 +1,13 @@
-export type DocumentStatus = 'CREATED' | 'UPLOADING' | 'QUEUED' | 'PROCESSING' | 'RETRYING' | 'INDEXED' | 'FAILED';
+export type DocumentStatus =
+  | 'CREATED'
+  | 'UPLOADING'
+  | 'QUEUED'
+  | 'PROCESSING'
+  | 'EXTRACTING'
+  | 'CHUNKING'
+  | 'RETRYING'
+  | 'INDEXED'
+  | 'FAILED';
 
 export interface DocumentDto {
   id: string;
@@ -29,4 +38,11 @@ export interface SearchResult {
   items: SearchHit[];
 }
 
-export const NON_TERMINAL_STATUSES = new Set<DocumentStatus>(['UPLOADING', 'QUEUED', 'PROCESSING', 'RETRYING']);
+export const NON_TERMINAL_STATUSES = new Set<DocumentStatus>([
+  'UPLOADING',
+  'QUEUED',
+  'PROCESSING',
+  'EXTRACTING',
+  'CHUNKING',
+  'RETRYING',
+]);

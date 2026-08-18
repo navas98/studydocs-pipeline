@@ -198,6 +198,11 @@ describe('Auth', () => {
     });
     expect(response.statusCode).toBe(401);
   });
+
+  it('does not register /auth/google when GOOGLE_CLIENT_ID is not configured', async () => {
+    const response = await app.inject({ method: 'POST', url: '/auth/google', payload: { idToken: 'x' } });
+    expect(response.statusCode).toBe(404);
+  });
 });
 
 describe('Documents HTTP API', () => {

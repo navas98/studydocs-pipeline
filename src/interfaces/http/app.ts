@@ -6,6 +6,7 @@ import multipart from '@fastify/multipart';
 import staticPlugin from '@fastify/static';
 import swagger from '@fastify/swagger';
 import type { LoginUserUseCase } from '../../application/auth/LoginUser.js';
+import type { LoginWithGoogleUseCase } from '../../application/auth/LoginWithGoogle.js';
 import type { RegisterUserUseCase } from '../../application/auth/RegisterUser.js';
 import type { CompleteUploadUseCase } from '../../application/documents/CompleteUpload.js';
 import type { CreateDocumentUseCase } from '../../application/documents/CreateDocument.js';
@@ -41,6 +42,7 @@ export interface AppDeps {
   checkHealth: CheckHealth;
   registerUser: RegisterUserUseCase;
   loginUser: LoginUserUseCase;
+  loginWithGoogle?: LoginWithGoogleUseCase;
   authMiddleware: AuthMiddleware;
 }
 

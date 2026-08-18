@@ -1,6 +1,11 @@
 import type { FastifyError, FastifyInstance } from 'fastify';
 import { ConcurrencyConflictError, DocumentNotFoundError, ForbiddenError } from '../../application/documents/errors.js';
-import { EmailAlreadyRegisteredError, InvalidCredentialsError, InvalidTokenError } from '../../application/auth/errors.js';
+import {
+  EmailAlreadyRegisteredError,
+  EmailRegisteredWithPasswordError,
+  InvalidCredentialsError,
+  InvalidTokenError,
+} from '../../application/auth/errors.js';
 import { InvalidDocumentTransitionError } from '../../domain/document/errors.js';
 
 // Single place mapping domain/application errors to HTTP status codes
@@ -13,6 +18,7 @@ const ERROR_STATUS_MAP: [new (...args: never[]) => Error, number][] = [
   [ConcurrencyConflictError, 409],
   [ForbiddenError, 403],
   [EmailAlreadyRegisteredError, 409],
+  [EmailRegisteredWithPasswordError, 409],
   [InvalidCredentialsError, 401],
   [InvalidTokenError, 401],
 ];

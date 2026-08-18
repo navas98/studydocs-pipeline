@@ -26,6 +26,7 @@
     "@fastify/swagger": "^9.2.0",
     "bcryptjs": "^3.0.3",
     "fastify": "^5.0.0",
+    "google-auth-library": "^11.0.2",
     "jsonwebtoken": "^9.0.3",
     "mongodb": "^6.9.0",
     "pdf-parse": "^2.4.5",

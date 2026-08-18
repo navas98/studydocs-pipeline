@@ -5,6 +5,7 @@ interface AuthContextValue {
   isAuthenticated: boolean;
   register: (email: string, password: string) => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
+  loginWithGoogle: (idToken: string) => Promise<void>;
   logout: () => void;
 }
 
@@ -43,12 +44,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsAuthenticated(true);
   }, []);
 
+  const loginWithGoogle = useCallback(async (idToken: string) => {
+    const response = await fetch('/auth/google', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ idToken }),
+    });
+    if (!response.ok) {
+      throw new Error(await parseError(response));
+    }
+    const { accessToken } = await response.json();
+    setToken(accessToken);
+    setIsAuthenticated(true);
+  }, []);
+
   const logout = useCallback(() => {
     clearToken();
     setIsAuthenticated(false);
   }, []);
 
-  const value = useMemo(() => ({ isAuthenticated, register, login, logout }), [isAuthenticated, register, login, logout]);
+  const value = useMemo(
+    () => ({ isAuthenticated, register, login, loginWithGoogle, logout }),
+    [isAuthenticated, register, login, loginWithGoogle, logout],
+  );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
