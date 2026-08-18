@@ -2,16 +2,15 @@
 
 [![CI](https://github.com/navas98/studydocs-pipeline/actions/workflows/ci.yml/badge.svg)](https://github.com/navas98/studydocs-pipeline/actions/workflows/ci.yml)
 
-> Construido como respuesta técnica a una candidatura para el puesto de Backend Engineer en Wuolah:
-> subida, procesamiento asíncrono, búsqueda e indexación de apuntes en PDF.
+> Un sistema de subida, procesamiento asíncrono, búsqueda e indexación de apuntes en PDF, con usuarios
+> reales.
 
-**No es el producto real de Wuolah** — es un sistema construido desde cero para demostrar cómo abordo el
-diseño, la implementación y la fiabilidad de un backend real: arquitectura hexagonal, procesamiento
-asíncrono desacoplado vía colas, concurrencia segura, búsqueda full-text, observabilidad y una suite de
-tests que corre contra infraestructura real en lugar de mocks.
+Construido como pieza de portfolio técnico para demostrar cómo abordo el diseño, la implementación y la
+fiabilidad de un backend real: arquitectura hexagonal, procesamiento asíncrono desacoplado vía colas,
+concurrencia segura, búsqueda full-text, autenticación, observabilidad y una suite de tests que corre
+contra infraestructura real en lugar de mocks.
 
 **Demo en vivo (frontend):** `npm run dev` + `cd frontend && npm run build` → [http://localhost:3000](http://localhost:3000)
-**Vídeo:** _próximamente_
 **Decisiones técnicas (ADRs):** [http://localhost:3000/decisions](http://localhost:3000/decisions) una vez levantado el proyecto
 
 ---
