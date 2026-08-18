@@ -22,10 +22,17 @@ const credentialsSchema = {
 
 const errorResponseSchema = { type: 'object', properties: { error: { type: 'string' } } } as const;
 
+// Credential-stuffing/brute-force throttle, keyed by IP. Register and
+// Google login get a looser cap than login since they're not the guessing
+// vector, but still shouldn't be free to hammer.
+const loginRateLimit = { max: 5, timeWindow: '1 minute' } as const;
+const registerRateLimit = { max: 10, timeWindow: '1 minute' } as const;
+
 export function registerAuthRoutes(app: FastifyInstance, deps: AuthRoutesDeps): void {
   app.post(
     '/auth/register',
     {
+      config: { rateLimit: registerRateLimit },
       schema: {
         body: credentialsSchema,
         response: {
@@ -48,6 +55,7 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AuthRoutesDeps): 
   app.post(
     '/auth/login',
     {
+      config: { rateLimit: loginRateLimit },
       schema: {
         body: credentialsSchema,
         response: {
@@ -70,6 +78,7 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AuthRoutesDeps): 
     app.post(
       '/auth/google',
       {
+        config: { rateLimit: loginRateLimit },
         schema: {
           body: {
             type: 'object',

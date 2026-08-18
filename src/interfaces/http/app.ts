@@ -3,6 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import Fastify, { type FastifyInstance } from 'fastify';
 import multipart from '@fastify/multipart';
+import rateLimit from '@fastify/rate-limit';
 import staticPlugin from '@fastify/static';
 import swagger from '@fastify/swagger';
 import type { LoginUserUseCase } from '../../application/auth/LoginUser.js';
@@ -76,6 +77,11 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   await app.register(multipart, {
     limits: { fileSize: MAX_UPLOAD_BYTES },
   });
+
+  // Global: false — only routes that opt in via `config.rateLimit` (the
+  // /auth/* endpoints, to slow down credential-stuffing/brute force) are
+  // throttled; everything else is unaffected.
+  await app.register(rateLimit, { global: false });
 
   // Demo frontend (section 18, Day 5) — React SPA built by Vite, served
   // straight from the API so the whole demo runs with one process and no

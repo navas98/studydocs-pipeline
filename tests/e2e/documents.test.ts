@@ -203,6 +203,20 @@ describe('Auth', () => {
     const response = await app.inject({ method: 'POST', url: '/auth/google', payload: { idToken: 'x' } });
     expect(response.statusCode).toBe(404);
   });
+
+  it('throttles repeated login attempts from the same client', async () => {
+    const responses = [];
+    for (let i = 0; i < 10; i++) {
+      responses.push(
+        await app.inject({
+          method: 'POST',
+          url: '/auth/login',
+          payload: { email: 'owner1@test.dev', password: 'wrong-password' },
+        }),
+      );
+    }
+    expect(responses.some((response) => response.statusCode === 429)).toBe(true);
+  });
 });
 
 describe('Documents HTTP API', () => {
